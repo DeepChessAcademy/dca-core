@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FEN Chess Analyzer COMPLETO e Interativo</title>
+    <style>
+        /* Variáveis de Layout */
+        :root {
+            --square-size: 60px;
+            --board-size: calc(8 * var(--square-size));
+            --coord-size: 20px;
+            --border-width: 5px;
+            --panel-width: 350px;
+            --main-color: #4CAF50; /* Verde */
+            --blocked-color: #d9534f; /* Vermelho */
+            --limited-color: #f0ad4e; /* Laranja */
+            --highlight-color: #3f7b9e; /* Azul Escuro */
+            --network-color: #9c27b0; /* Roxo */
+            /* CORES NOVAS: Hierarquia de Impacto (Roxo) */
+            --net-dark-purple: rgba(100, 0, 150, 0.7); /* Roxo Escuro: Peça de Maior Impacto (Rei/Foco) */
+            --net-light-purple: rgba(180, 100, 200, 0.5); /* Roxo Claro: Peças de Impacto Secundário (Torre/Peão/Defensoras) */
+        }
+
+        /* Estrutura Principal */
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        #main-content {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 30px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        h1, p { text-align: center; width: 100%; }
+        .input-group { text-align: center; margin-bottom: 20px; width: 100%; }
+        #fen-input { width: 400px; padding: 10px; font-size: 16px; border: 1px solid #ccc; }
+        #parse-button { padding: 10px 15px; font-size: 16px; cursor: pointer; background-color: var(--main-color); color: white; border: none; margin-left: 10px; }
+        #validation-message { margin-top: 10px; font-weight: bold; }
+
+        /* --- Tabuleiro --- */
+        #board-wrapper {
+            width: calc(var(--board-size) + var(--coord-size) + var(--border-width));
+            height: calc(var(--board-size) + var(--coord-size) + var(--border-width));
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            position: relative; 
+        }
+
+        #board-area {
+            display: flex;
+            width: 100%;
+            height: var(--board-size);
+            margin-bottom: var(--border-width);
+        }
+
+        #rank-coords {
+            display: grid;
+            grid-template-rows: repeat(8, var(--square-size));
+            width: var(--coord-size);
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+            line-height: var(--square-size);
+            padding-right: var(--border-width);
+        }
+
+        #chessboard-container {
+            display: grid;
+            grid-template-columns: repeat(8, var(--square-size));
+            grid-template-rows: repeat(8, var(--square-size));
+            width: var(--board-size); 
+            height: var(--board-size);
+            border: var(--border-width) solid #333; 
+            margin: 0;
+            position: relative; 
+        }
+
+        .square {
+            display: flex; justify-content: center; align-items: center;
+            font-size: 45px; cursor: pointer; user-select: none;
+            position: relative; 
+        }
+        
+        .square.highlight {
+            box-shadow: inset 0 0 0 4px var(--highlight-color);
+        }
+
+        .light { background-color: #f0d9b5; }
+        .dark { background-color: #b58863; }
+        .white-piece { color: white; text-shadow: 1px 1px 2px #333; }
+        .black-piece { color: black; }
+
+        /* Estilos de Rede Ativa (HIERARQUIA DE CORES) */
+        /* Roxo Escuro: Rei (Principal Atacado/Foco) */
+        .square.net-dark {
+            background-color: var(--net-dark-purple) !important; 
+        }
+        /* Roxo Claro: Peças Secundárias e Defendidas (Torre/Peão/Defensoras) */
+        .square.net-light {
+            background-color: var(--net-light-purple) !important; 
+        }
+
+
+        #file-coords {
+            display: grid;
+            grid-template-columns: repeat(8, var(--square-size));
+            height: var(--coord-size);
+            line-height: var(--coord-size);
+            font-weight: bold;
+            font-size: 12px;
+            text-align: center;
+            padding-left: calc(var(--coord-size) + var(--border-width));
+        }
+
+        /* --- Painel Lateral de Análise --- */
+        #analysis-panel {
+            width: var(--panel-width);
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 20px;
+            overflow-y: auto;
+            max-height: 90vh;
+        }
+        
+        #analysis-panel h2 { border-bottom: 2px solid #eee; padding-bottom: 5px; color: #333; margin-top: 0; }
+        .card { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 6px; background-color: #fafafa; }
+        .card-header { font-weight: bold; color: var(--main-color); margin-bottom: 10px; font-size: 1.1em; }
+        .metric-list { list-style: none; padding: 0; margin: 0; }
+        .metric-list li { padding: 3px 0; border-bottom: 1px dashed #eee; display: flex; justify-content: space-between; }
+        .metric-list li:last-child { border-bottom: none; }
+        .contact-item { font-size: 0.9em; padding: 5px 0; border-bottom: 1px dotted #ccc; }
+        .contact-item span.attack { color: red; font-weight: bold; }
+        .contact-item span.defense { color: blue; }
+        .contact-item span.network { color: var(--network-color); font-weight: bold; }
+
+        .status-blocked { color: var(--blocked-color); font-weight: bold; }
+        .status-limited { color: var(--limited-color); font-weight: bold; }
+        
+        /* Estilo para cards de detalhes (Casa/Peça) */
+        #clicked-square-details .card-header,
+        #clicked-piece-details .card-header { 
+            background-color: var(--highlight-color); 
+            color: white; 
+            padding: 8px 10px;
+            margin: -15px -15px 10px -15px;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+            font-size: 1.2em;
+        }
+        
+        /* Adicionado: Estilo para ocultar inicialmente os painéis de detalhes */
+        .hidden-detail-card {
+            display: none;
+        }
+        
+        /* NOVO: Estilo para o botão de limpar rede */
+        #clear-network-button {
+            padding: 5px 10px;
+            font-size: 14px;
+            cursor: pointer;
+            background-color: var(--blocked-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            margin-top: 10px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>♟️ FEN Chess Analyzer COMPLETO</h1>
+    
+    <div class="input-group">
+        <input type="text" id="fen-input" value="3Q2kr/2p2p2/6pp/1p2P2N/1qb1N1P1/3p3P/5P2/6K1 b - - 3 35">
+        <button id="parse-button">Analisar & Renderizar</button>
+        <div id="validation-message"></div>
+    </div>
+    
+    <div id="main-content">
+        <div id="board-wrapper">
+            <div id="board-area">
+                <div id="rank-coords"></div>
+                <div id="chessboard-container">
+                </div>
+            </div>
+            <div id="file-coords"></div>
+        </div>
+
+        <aside id="analysis-panel">
+            
+            <div id="clicked-piece-details" class="hidden-detail-card">
+                <div class="card">
+                    <div class="card-header">Clique em uma peça para análise atômica...</div>
+                </div>
+            </div>
+            
+            <div id="clicked-square-details" class="hidden-detail-card">
+                <div class="card">
+                    <div class="card-header">Clique em uma casa para analisar...</div>
+                </div>
+            </div>
+
+            <div id="network-controls" class="card" style="margin-top: 10px;">
+                <div class="card-header" style="background-color: var(--network-color); color: white;">🔗 Visualizar Redes</div>
+                <div style="padding: 5px;">
+                    <label for="network-selector">Rede (Impacto) #:</label>
+                    <select id="network-selector" style="width: 70%;" disabled>
+                        <option value="none">Nenhuma</option>
+                    </select>
+                    <button id="clear-network-button" disabled>Limpar Visualização</button>
+                </div>
+            </div>
+            
+            <div id="board-overview" class="card" style="margin-top: 20px;">
+                <div class="card-header" style="background-color: #337ab7; color: white;">📋 Visão Geral de Peças</div>
+                <ul id="overview-list" class="metric-list" style="max-height: 250px; overflow-y: auto;">
+                    <li>Aguardando análise...</li>
+                </ul>
+            </div>
+
+            <h2>🔎 Detalhes da Posição Geral</h2>
+            <div id="analysis-results">
+                <p>Aguardando análise...</p>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // --- CONSTANTES E VARIÁVEIS GLOBAIS ---
+        const PIECE_MAP = {
+            'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚', 'p': '♟', 
+            'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔', 'P': '♙', 
+        };
+        const VALID_PIECES = 'rnbqkpRNBQKP';
+        const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1']; // Fileiras [0] a [7] (do topo para baixo)
+        const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']; // Colunas
+        
+        let globalAnalysisResult = null; // Armazena o resultado completo da análise FEN
+        let activeNetworkId = 'none'; // ID da rede atualmente selecionada para visualização
+
+        // --- FUNÇÕES DE UTENSÍLIO E MÉTODOS DE BUSCA ---
+
+        /**
+         * Retorna a peça e seus detalhes em uma casa específica.
+         */
+        function getPieceAtSquare(squareName, board) {
+             const fileIndex = FILES.indexOf(squareName[0]);
+             const rankIndex = RANKS.indexOf(squareName[1]);
+             if (fileIndex === -1 || rankIndex === -1 || !board) return null;
+             return board[rankIndex][fileIndex];
+        }
+
+        // --- FUNÇÕES DE PARSING E ANÁLISE ---
+        
+        /**
+         * Converte uma string FEN em uma estrutura de dados de tabuleiro.
+         */
+        function parseFenToData(fen) {
+            const data = {
+                isValid: false, message: 'FEN inválido', board: null, activeColor: null, 
+                castling: null, enPassant: null, halfMoveClock: null, fullMoveNumber: null
+            };
+            const parts = fen.trim().split(' ');
+            if (parts.length !== 6) { data.message = 'FEN deve ter 6 campos.'; return data; }
+
+            const [piecesStr, activeColor, castling, enPassant, halfMoveClockStr, fullMoveNumberStr] = parts;
+            const ranksArr = piecesStr.split('/');
+            if (ranksArr.length !== 8) { data.message = 'A disposição das peças deve ter 8 fileiras.'; return data; }
+
+            const board = [];
+            for (let r = 0; r < 8; r++) {
+                let rank = [];
+                let squareCount = 0;
+                for (const char of ranksArr[r]) {
+                    if (VALID_PIECES.includes(char)) {
+                        rank.push({ piece: char, square: `${FILES[squareCount]}${RANKS[r]}`, color: char === char.toUpperCase() ? 'white' : 'black' });
+                        squareCount++;
+                    } else if (/\d/.test(char)) {
+                        const numEmpty = parseInt(char);
+                        for (let j = 0; j < numEmpty; j++) { rank.push(null); }
+                        squareCount += numEmpty;
+                    } else { data.message = `Caractere inválido: "${char}".`; return data; }
+                }
+                if (squareCount !== 8) { data.message = `A fileira ${RANKS[r]} tem ${squareCount} casas, o esperado é 8.`; return data; }
+                board.push(rank);
+            }
+            data.board = board;
+
+            if (!['w', 'b'].includes(activeColor)) { data.message = 'Cor ativa inválida.'; return data; }
+            data.activeColor = activeColor;
+            data.castling = castling;
+            data.enPassant = enPassant;
+            data.halfMoveClock = parseInt(halfMoveClockStr);
+            data.fullMoveNumber = parseInt(fullMoveNumberStr);
+
+            data.isValid = true;
+            data.message = 'FEN analisado com sucesso.';
+            return data;
+        }
+
+        /**
+         * Conta o total de peças por cor e por tipo.
+         */
+        function countPieces(board) {
+            const counts = { total: 0, white: 0, black: 0, byType: { K: 0, Q: 0, R: 0, B: 0, N: 0, P: 0, k: 0, q: 0, r: 0, b: 0, n: 0, p: 0 } };
+            board.flat().forEach(square => {
+                if (square && square.piece) {
+                    counts.total++;
+                    counts.byType[square.piece]++;
+                    if (square.piece === square.piece.toUpperCase()) { counts.white++; } else { counts.black++; }
+                }
+            });
+            return counts;
+        }
+        
+        /**
+         * Realiza a análise de controle de casas, mobilidade e contatos.
+         */
+        function analyzeBoard(board) {
+            const MOVES = {
+                P: [{dr: -1, dc: -1}, {dr: -1, dc: 1}], // Peão Branco: Captura (controle)
+                p: [{dr: 1, dc: -1}, {dr: 1, dc: 1}],   // Peão Preto: Captura (controle)
+                N: [{dr: -2, dc: -1}, {dr: -2, dc: 1}, {dr: -1, dc: -2}, {dr: -1, dc: 2}, {dr: 1, dc: -2}, {dr: 1, dc: 2}, {dr: 2, dc: -1}, {dr: 2, dc: 1}],
+                R: [{dr: 0, dc: 1}, {dr: 0, dc: -1}, {dr: 1, dc: 0}, {dr: -1, dc: 0}],
+                B: [{dr: 1, dc: 1}, {dr: 1, dc: -1}, {dr: -1, dc: 1}, {dr: -1, dc: -1}],
+                Q: [{dr: 0, dc: 1}, {dr: 0, dc: -1}, {dr: 1, dc: 0}, {dr: -1, dc: 0}, {dr: 1, dc: 1}, {dr: 1, dc:-1}, {dr: -1, dc: 1}, {dr: -1, dc: -1}],
+                K: [{dr: 0, dc: 1}, {dr: 0, dc: -1}, {dr: 1, dc: 0}, {dr: -1, dc: 0}, {dr: 1, dc: 1}, {dr: 1, dc: -1}, {dr: -1, dc: 1}, {dr: -1, dc: -1}]
+            };
+
+            const controlledSquares = { white: {}, black: {}, total: 0 };
+            const contacts = []; 
+            const pieceMobility = {}; 
+            
+            const contactsByTarget = {}; // { targetSquare: [{attacker, type, piece}, ...] }
+            const contactsByAttacker = {}; // { attackerSquare: [{target, type, piece}, ...] }
+            
+            const getSquareName = (r, c) => `${FILES[c]}${RANKS[r]}`; 
+            const isOppositeColor = (piece1, piece2) => (piece1 === piece1.toUpperCase()) !== (piece2 === piece2.toUpperCase());
+            
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const pieceObj = board[r][c];
+                    if (!pieceObj) continue;
+
+                    const { piece, square, color } = pieceObj;
+                    const pieceType = piece.toUpperCase();
+                    
+                    pieceMobility[square] = { total: 0, contacts: 0, free: 0, piece: piece, color: color, square: square };
+                    
+                    
+                    // --- LÓGICA EXCLUSIVA DE AVANÇO DO PEÃO (MOBILIDADE CORRIGIDA) ---
+                    if (pieceType === 'P') {
+                        const rankDelta = (piece === 'P' ? -1 : 1); 
+                        
+                        // 1. Avanço de 1 casa
+                        let nextR1 = r + rankDelta;
+                        let nextC = c;
+                        
+                        if (nextR1 >= 0 && nextR1 < 8) {
+                            if (!board[nextR1][nextC]) {
+                                pieceMobility[square].total++;
+                                pieceMobility[square].free++;
+                                
+                                // 2. Avanço de 2 casas
+                                if ((piece === 'P' && r === 6) || (piece === 'p' && r === 1)) {
+                                    let nextR2 = r + 2 * rankDelta;
+                                    if (nextR2 >= 0 && nextR2 < 8 && !board[nextR2][nextC]) {
+                                        pieceMobility[square].total++;
+                                        pieceMobility[square].free++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // --- FIM DA LÓGICA DE AVANÇO DO PEÃO ---
+
+
+                    const vectors = MOVES[pieceType === 'P' ? piece : pieceType];
+                    if (!vectors) continue;
+
+                    const maxDist = (pieceType === 'R' || pieceType === 'B' || pieceType === 'Q') ? 8 : 1;
+                    
+                    vectors.forEach(move => {
+                        for (let dist = 1; dist <= maxDist; dist++) {
+                            let nextR = r + move.dr * dist;
+                            let nextC = c + move.dc * dist;
+
+                            if (nextR < 0 || nextR >= 8 || nextC < 0 || nextC >= 8) break;
+
+                            const targetSquareName = getSquareName(nextR, nextC);
+                            const targetPieceObj = board[nextR][nextC];
+                            const targetPiece = targetPieceObj ? targetPieceObj.piece : null;
+                            
+                            // 1. REGISTRO DE CASAS CONTROLADAS
+                            const controlColor = color;
+                            if (!controlledSquares[controlColor][targetSquareName]) {
+                                controlledSquares[controlColor][targetSquareName] = [];
+                            }
+                            controlledSquares[controlColor][targetSquareName].push(square);
+                            controlledSquares.total++;
+
+
+                            // 2. PONTOS DE CONTATO & MOBILIDADE LIVRE
+                            if (targetPiece) {
+                                // Contato: Ataque ou Defesa
+                                const contactType = isOppositeColor(piece, targetPiece) ? 'Ataque' : 'Defesa';
+                                const newContact = { 
+                                    type: contactType, 
+                                    attacker: square, 
+                                    target: targetSquareName, 
+                                    attackerPiece: piece, 
+                                    targetPiece: targetPiece 
+                                };
+                                contacts.push(newContact);
+                                
+                                // Popula as estruturas de mapeamento para análise de rede
+                                if (!contactsByTarget[targetSquareName]) contactsByTarget[targetSquareName] = [];
+                                contactsByTarget[targetSquareName].push({ attacker: square, type: contactType, piece: piece });
+
+                                if (!contactsByAttacker[square]) contactsByAttacker[square] = [];
+                                contactsByAttacker[square].push({ target: targetSquareName, type: contactType, piece: targetPiece });
+
+
+                                pieceMobility[square].total++;
+                                pieceMobility[square].contacts++;
+                                
+                                // Parar peças deslizantes em qualquer peça 
+                                if (maxDist > 1) break; 
+                            } else {
+                                // Mobilidade Livre (Casas VAZIAS)
+                                if (pieceType !== 'P') {
+                                    pieceMobility[square].total++;
+                                    pieceMobility[square].free++;
+                                }
+                            }
+                            
+                            if (targetPiece && maxDist > 1) break;
+                            if (maxDist === 1) break; 
+                        }
+                    });
+                }
+            }
+            
+            // --- CÁLCULO DE BLOQUEIO E LIMITAÇÃO ---
+            const blockedPieces = [];
+            const limitedPieces = [];
+            const LIMIT_THRESHOLD = 3;
+
+            Object.keys(pieceMobility).forEach(square => {
+                const mobility = pieceMobility[square];
+                const pieceChar = mobility.piece;
+                const pieceSymbol = PIECE_MAP[pieceChar];
+
+                if (mobility.total === 0) {
+                    blockedPieces.push({ square: square, piece: pieceChar, symbol: pieceSymbol });
+                } else if (mobility.total < LIMIT_THRESHOLD) {
+                    limitedPieces.push({ square: square, piece: pieceChar, symbol: pieceSymbol, moves: mobility.total });
+                }
+            });
+            
+            return { controlledSquares, contacts, blockedPieces, limitedPieces, pieceMobility, contactsByTarget, contactsByAttacker };
+        }
+
+        /**
+         * Analisa as redes de composição (cadeias de contatos de 2 passos: A -> B -> C).
+         * (MODIFICADO: Adicionado cálculo de casas afetadas)
+         */
+        function analyzeCompositionNetworks(contactsByAttacker, contactsByTarget, board) {
+            const networks = [];
+            let networkIdCounter = 1; 
+
+            Object.keys(contactsByTarget).forEach(targetB => {
+                
+                const pieceB_Obj = getPieceAtSquare(targetB, board); 
+                if (!pieceB_Obj) return; 
+                
+                const contactsToB = contactsByTarget[targetB]; 
+                const contactsFromB = contactsByAttacker[targetB] || []; 
+
+                if (contactsToB.length > 0 && contactsFromB.length > 0) {
+                    
+                    contactsToB.forEach(contactAB => {
+                        const attackerA = contactAB.attacker;
+                        const typeAB = contactAB.type; 
+                        const pieceA = contactAB.piece;
+
+                        contactsFromB.forEach(contactBC => {
+                            const targetC = contactBC.target;
+                            const typeBC = contactBC.type; 
+                            const pieceC = contactBC.piece;
+
+                            // Adiciona a lógica para determinar o impacto (casas únicas)
+                            const squares = [attackerA, targetB, targetC];
+                            const uniqueSquares = Array.from(new Set(squares));
+                            
+                            networks.push({
+                                id: networkIdCounter++, 
+                                attackerA: attackerA,
+                                targetB: targetB, 
+                                targetC: targetC,
+                                pieceA: pieceA,
+                                pieceB: pieceB_Obj.piece,
+                                pieceC: pieceC,
+                                typeAB: typeAB,
+                                typeBC: typeBC,
+                                numAffectedSquares: uniqueSquares.length, // NOVO: Casas afetadas
+                                description: `${PIECE_MAP[pieceA]}${attackerA} ${typeAB.toLowerCase()} ${PIECE_MAP[pieceB_Obj.piece]}${targetB} que ${typeBC.toLowerCase()} ${PIECE_MAP[pieceC]}${targetC}`
+                            });
+                        });
+                    });
+                }
+            });
+
+            return networks;
+        }
+
+
+        /**
+         * Orquestra o parsing e a análise completa do FEN.
+         */
+        function parseAndAnalyzeFen(fen) {
+            const data = parseFenToData(fen);
+            if (!data.isValid) return data;
+
+            data.pieceCounts = countPieces(data.board); 
+            const analysis = analyzeBoard(data.board);
+            
+            data.controlledSquares = analysis.controlledSquares;
+            data.contacts = analysis.contacts;
+            data.blockedPieces = analysis.blockedPieces;
+            data.limitedPieces = analysis.limitedPieces;
+            
+            globalAnalysisResult = data;
+            data.compositionNetworks = analyzeCompositionNetworks(analysis.contactsByAttacker, analysis.contactsByTarget, data.board); 
+            data.contactsByTarget = analysis.contactsByTarget; 
+            data.contactsByAttacker = analysis.contactsByAttacker; 
+            
+            return data;
+        }
+
+        // --- FUNÇÕES DE RENDERIZAÇÃO INTERATIVA ---
+        
+        /**
+         * Função auxiliar para mapear coordenada (e4) para Símbolo+Coordenada (Ne4)
+         */
+        const formatControllerList = (squares) => {
+            if (!globalAnalysisResult || !globalAnalysisResult.board) return squares;
+
+            return squares.map(squareName => {
+                const file = squareName[0];
+                const rank = squareName[1];
+                const fileIndex = FILES.indexOf(file);
+                const rankIndex = RANKS.indexOf(rank);
+
+                if (fileIndex === -1 || rankIndex === -1) return squareName;
+
+                const pieceObj = globalAnalysisResult.board[rankIndex][fileIndex];
+                
+                if (pieceObj && pieceObj.piece) {
+                    const pieceChar = pieceObj.piece;
+                    // Usa a letra da peça em maiúsculo (P/N/Q) + coordenada para notação SAN
+                    const symbol = pieceChar.toUpperCase(); 
+                    return symbol + squareName;
+                }
+                return squareName; 
+            });
+        };
+
+        /**
+         * Aplica a lógica de coloração da rede ao tabuleiro.
+         * (REESCRITO para Hierarquia de Cores sem setas)
+         */
+        function applyNetworkVisualization() {
+            // 1. Limpa todas as classes de rede
+            document.querySelectorAll('.square').forEach(sq => {
+                sq.classList.remove('net-dark', 'net-light');
+            });
+            
+            if (activeNetworkId === 'none' || !globalAnalysisResult || !globalAnalysisResult.isValid) {
+                document.getElementById('clear-network-button').disabled = true;
+                return; 
+            }
+            
+            document.getElementById('clear-network-button').disabled = false;
+
+            // Busca a rede com o ID ORDENADO (que está no objeto)
+            const selectedNetwork = globalAnalysisResult.compositionNetworks.find(n => n.id === parseInt(activeNetworkId));
+            
+            if (selectedNetwork) {
+                
+                // Conjunto de todas as casas que DEVEM ser destacadas no final
+                const piecesToHighlight = new Set();
+                
+                // 2. Nível 1: Rei (Principal Peça Atacada/Foco de Defesa) -> Roxo Escuro
+                // O Rei preto é 'k' minúsculo
+                
+                // Verifica todas as casas envolvidas na cadeia A->B->C
+                [selectedNetwork.attackerA, selectedNetwork.targetB, selectedNetwork.targetC].forEach(square => {
+                    const piece = getPieceAtSquare(square, globalAnalysisResult.board);
+                    if (piece && piece.piece.toLowerCase() === 'k') {
+                        document.querySelector(`[data-square="${square}"]`).classList.add('net-dark');
+                        piecesToHighlight.add(square); // Adiciona o Rei para ser expandido
+                    }
+                });
+
+                // 3. Nível 2: Torre e Peão (Impacto Secundário) -> Roxo Claro
+                [selectedNetwork.attackerA, selectedNetwork.targetB, selectedNetwork.targetC].forEach(square => {
+                    const piece = getPieceAtSquare(square, globalAnalysisResult.board);
+                    const element = document.querySelector(`[data-square="${square}"]`);
+                    
+                    if (piece && (piece.piece.toLowerCase() === 'r' || piece.piece.toLowerCase() === 'p')) {
+                        if (!element.classList.contains('net-dark')) { // Se não for o Rei
+                            element.classList.add('net-light');
+                            piecesToHighlight.add(square); // Adiciona para ser expandido
+                        }
+                    } else if (piece && piece.piece.toLowerCase() === 'q') {
+                        // Inclui a Rainha atacante no destaque Roxo Claro, se não for o Rei
+                        if (!element.classList.contains('net-dark')) {
+                            element.classList.add('net-light');
+                            piecesToHighlight.add(square);
+                        }
+                    }
+                });
+                
+                // 4. Expansão de Defesa Recursiva (Nível 3 e além) -> Roxo Claro
+                // Qualquer peça já destacada que defende outra peça deve passar a cor Roxo Claro.
+                
+                const queue = Array.from(piecesToHighlight);
+                const expanded = new Set(queue);
+
+                while (queue.length > 0) {
+                    const currentSquare = queue.shift();
+                    
+                    // Encontra todas as peças que esta peça (currentSquare) defende
+                    const outgoingContacts = globalAnalysisResult.contactsByAttacker[currentSquare] || [];
+                    
+                    outgoingContacts.forEach(contact => {
+                        if (contact.type === 'Defesa') {
+                            const defendedSquare = contact.target;
+                            const defendedEl = document.querySelector(`[data-square="${defendedSquare}"]`);
+                            
+                            if (defendedEl && !defendedEl.classList.contains('net-dark') && !expanded.has(defendedSquare)) {
+                                defendedEl.classList.add('net-light');
+                                expanded.add(defendedSquare);
+                                queue.push(defendedSquare); // Continua a expansão
+                            }
+                        }
+                    });
+                }
+            }
+        }
+        
+        /**
+         * Manipula o clique em uma casa, acionando a análise atômica da casa e da peça.
+         */
+        function handleSquareClick(event) {
+            if (!globalAnalysisResult || !globalAnalysisResult.isValid) return;
+
+            // Remove o realce de seleção da casa anterior
+            document.querySelectorAll('.square').forEach(sq => sq.classList.remove('highlight'));
+            
+            const clickedSquareDiv = event.currentTarget;
+            clickedSquareDiv.classList.add('highlight');
+            
+            const squareName = clickedSquareDiv.dataset.square;
+            const pieceObj = getPieceAtSquare(squareName, globalAnalysisResult.board);
+            
+            const analysis = globalAnalysisResult;
+            
+            // 1. Lógica para Análise da CASA
+            const attackedByWhiteList = analysis.controlledSquares.white[squareName] || [];
+            const attackedByBlackList = analysis.controlledSquares.black[squareName] || [];
+            
+            renderClickedSquareDetails({
+                squareName,
+                pieceObj,
+                attackedByWhite: attackedByWhiteList, 
+                attackedByBlack: attackedByBlackList, 
+                pieceMobility: analysis.pieceMobility[squareName],
+                pieceContacts: analysis.contacts.filter(c => c.attacker === squareName || c.target === squareName)
+            });
+            
+            // 2. Lógica para Análise da PEÇA (se houver peça)
+            if (pieceObj) {
+                renderClickedPieceDetails({
+                    squareName,
+                    pieceObj,
+                    pieceMobility: analysis.pieceMobility[squareName],
+                    pieceContacts: analysis.contacts.filter(c => c.attacker === squareName || c.target === squareName),
+                    compositionNetworks: analysis.compositionNetworks.filter(n => n.attackerA === squareName || n.targetB === squareName || n.targetC === squareName)
+                });
+            } else {
+                // Se não há peça, apenas renderiza o cartão de análise da casa e oculta o de peça
+                document.getElementById('clicked-piece-details').classList.add('hidden-detail-card');
+            }
+            
+            // Exibe os cards de detalhes
+            document.getElementById('clicked-square-details').classList.remove('hidden-detail-card');
+            if (pieceObj) {
+                document.getElementById('clicked-piece-details').classList.remove('hidden-detail-card');
+            }
+        }
+        
+        /**
+         * Renderiza o painel de detalhes da CASA clicada.
+         */
+        function renderClickedSquareDetails(details) {
+            const container = document.getElementById('clicked-square-details');
+            const cardElement = container.querySelector('.card');
+            
+            const attackedByWhite = details.attackedByWhite;
+            const attackedByBlack = details.attackedByBlack;
+            
+            // Formata as listas para SAN (Símbolo + Coordenada)
+            const whiteControllersSAN = formatControllerList(attackedByWhite);
+            const blackControllersSAN = formatControllerList(attackedByBlack);
+
+            const pieceSymbol = details.pieceObj ? PIECE_MAP[details.pieceObj.piece] : 'Vazia';
+            const pieceChar = details.pieceObj ? details.pieceObj.piece : null;
+            const pieceColor = details.pieceObj ? details.pieceObj.color : null;
+            
+            let mobilityStatus = 'N/A';
+            if (details.pieceMobility) {
+                if (details.pieceMobility.total === 0) { mobilityStatus = `<span class="status-blocked">Bloqueada</span>`; }
+                else if (details.pieceMobility.total < 3) { mobilityStatus = `<span class="status-limited">Limitada (${details.pieceMobility.total} mov)</span>`; }
+                else { mobilityStatus = `Alta (${details.pieceMobility.total} mov)`; }
+            }
+
+            let detailHtml = `<div class="card-header">Análise da Casa: ${details.squareName} (${pieceSymbol})</div>
+                <ul class="metric-list">
+                    <li><span>Peça na Casa:</span> <span>${pieceSymbol} (${pieceChar ? pieceChar : '-'})</span></li>
+                    <li><span>Cor:</span> <span>${pieceColor ? (pieceColor === 'white' ? 'Branca' : 'Preta') : '-'}</span></li>
+                    <li><span>Mob. da Peça:</span> <span>${mobilityStatus}</span></li>
+                </ul>
+                <div class="card-header" style="background-color: #777; margin-top: 10px;">Controle & Interações (Casa)</div>
+                <ul class="metric-list">
+                    <li><span>Controlada por Brancas:</span> <span>${attackedByWhite.length} peças</span></li>
+                    <li><span>Controlada por Pretas:</span> <span>${attackedByBlack.length} peças</span></li>
+                </ul>
+                <details style="margin-top: 10px; font-size: 0.9em;">
+                    <summary>Detalhes do Controle</summary>
+                    <p style="margin: 5px 0 0 0;">Brancas: ${whiteControllersSAN.join(', ')}</p>
+                    <p style="margin: 5px 0 0 0;">Pretas: ${blackControllersSAN.join(', ')}</p>
+                </details>
+            `;
+            cardElement.innerHTML = detailHtml;
+        }
+
+        /**
+         * Renderiza o painel de detalhes da PEÇA clicada.
+         */
+        function renderClickedPieceDetails(details) {
+            const container = document.getElementById('clicked-piece-details');
+            const cardElement = container.querySelector('.card');
+            
+            const { squareName, pieceObj, pieceMobility, pieceContacts, compositionNetworks } = details;
+
+            const pieceSymbol = PIECE_MAP[pieceObj.piece];
+            const pieceColor = pieceObj.color;
+            
+            let mobilityStatus = '';
+            let movesList = 'N/A';
+            if (pieceMobility) {
+                movesList = `Livre: ${pieceMobility.free}, Contato: ${pieceMobility.contacts}`;
+                if (pieceMobility.total === 0) { mobilityStatus = `<span class="status-blocked">Bloqueada (0 mov)</span>`; }
+                else if (pieceMobility.total < 3) { mobilityStatus = `<span class="status-limited">Limitada (${pieceMobility.total} mov)</span>`; }
+                else { mobilityStatus = `Boa (${pieceMobility.total} mov)`; }
+            }
+
+            // Agrupar interações
+            const attacks = pieceContacts.filter(c => c.type === 'Ataque' && c.attacker === squareName);
+            const defenses = pieceContacts.filter(c => c.type === 'Defesa' && c.attacker === squareName);
+            const targets = pieceContacts.filter(c => c.target === squareName); 
+            
+            // Agrupar Redes de Composição
+            const activeNetworks = compositionNetworks.filter(n => n.attackerA === squareName);
+            const intermediateNetworks = compositionNetworks.filter(n => n.targetB === squareName && n.attackerA !== squareName);
+            const passiveNetworks = compositionNetworks.filter(n => n.targetC === squareName);
+            const uniqueNetworks = Array.from(new Set(compositionNetworks.map(n => n.description))).map(desc => compositionNetworks.find(n => n.description === desc));
+
+
+            let detailHtml = `<div class="card-header" style="background-color: ${pieceColor === 'white' ? '#4a76a8' : '#333'}; color: white;">Análise da Peça: ${pieceSymbol} em ${squareName}</div>
+                
+                <div class="card-header" style="background-color: #f0f0f0; color: #333; margin-top: 10px;">Situação e Mobilidade</div>
+                <ul class="metric-list">
+                    <li><span>Cor:</span> <span>${pieceColor === 'white' ? 'Branca' : 'Preta'}</span></li>
+                    <li><span>Status da Mobilidade:</span> <span>${mobilityStatus}</span></li>
+                    <li><span>Detalhamento dos Movimentos:</span> <span>${movesList}</span></li>
+                </ul>
+
+                <div class="card-header" style="background-color: #f0f0f0; color: #333; margin-top: 10px;">Interações Peça-Peça</div>
+                <ul class="metric-list">
+                    <li><span>Ataca:</span> <span style="color: red; font-weight: bold;">${attacks.length} peças</span></li>
+                    <li><span>Defende:</span> <span style="color: blue; font-weight: bold;">${defenses.length} peças</span></li>
+                    <li><span>Alvo de Contato (é atacada/defendida):</span> <span>${targets.length} peças</span></li>
+                </ul>
+                
+                <div class="card-header" style="background-color: var(--network-color); color: white; margin-top: 10px;">Redes de Composição</div>
+                <ul class="metric-list">
+                    <li><span>Redes Envolvidas:</span> <span class="network">${uniqueNetworks.length}</span></li>
+                    <li><span>Como Peça Inicial (A):</span> <span class="network">${activeNetworks.length}</span></li>
+                    <li><span>Como Peça Intermediária (B):</span> <span class="network">${intermediateNetworks.length}</span></li>
+                    <li><span>Como Alvo Final (C):</span> <span class="network">${passiveNetworks.length}</span></li>
+                </ul>
+
+                <details style="margin-top: 10px; font-size: 0.9em;">
+                    <summary>Detalhes das Interações (${pieceContacts.length})</summary>
+                    <p style="margin: 5px 0 0 0; font-weight: bold;">Alvos da Peça (${pieceSymbol}${squareName}):</p>
+                    ${attacks.map(c => `<div class="contact-item"><span class="attack">Ataca:</span> ${PIECE_MAP[c.targetPiece]}${c.target}</div>`).join('')}
+                    ${defenses.map(c => `<div class="contact-item"><span class="defense">Defende:</span> ${PIECE_MAP[c.targetPiece]}${c.target}</div>`).join('')}
+                    <p style="margin: 10px 0 0 0; font-weight: bold;">Peças Interagindo com Ela:</p>
+                    ${targets.map(c => {
+                        const type = c.type === 'Ataque' ? 'attack' : 'defense';
+                        const verb = c.type === 'Ataque' ? 'Atacada por' : 'Defendida por';
+                        return `<div class="contact-item"><span class="${type}">${verb}:</span> ${PIECE_MAP[c.attackerPiece]}${c.attacker}</div>`;
+                    }).join('')}
+                </details>
+
+                <details style="margin-top: 10px; font-size: 0.9em;">
+                    <summary>Detalhes das Redes (${uniqueNetworks.length})</summary>
+                    ${uniqueNetworks.length > 0 ? uniqueNetworks.map(n => 
+                        `<div class="contact-item"><span class="network">Rede #${n.id}:</span> ${n.description}</div>`
+                    ).join('') : '<p style="margin: 5px 0 0 0;">Nenhuma rede de composição de 2 passos encontrada.</p>'}
+                </details>
+            `;
+            cardElement.innerHTML = detailHtml;
+            // Garante que o cartão de peça seja exibido, já que só é renderizado se houver peça
+            document.getElementById('clicked-piece-details').classList.remove('hidden-detail-card');
+        }
+
+        /**
+         * Renderiza o tabuleiro e as coordenadas.
+         */
+        function renderBoard(board) {
+            const container = document.getElementById('chessboard-container');
+            container.innerHTML = '';
+            
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const square = document.createElement('div');
+                    const squareName = `${FILES[c]}${RANKS[r]}`;
+                    
+                    square.className = 'square';
+                    square.dataset.square = squareName; 
+                    square.addEventListener('click', handleSquareClick);
+                    
+                    if ((r + c) % 2 === 0) { square.classList.add('light'); } else { square.classList.add('dark'); }
+
+                    const pieceObj = board[r][c];
+                    if (pieceObj && pieceObj.piece) {
+                        const pieceCode = pieceObj.piece;
+                        square.textContent = PIECE_MAP[pieceCode];
+                        if (pieceCode === pieceCode.toUpperCase()) { square.classList.add('white-piece'); } else { square.classList.add('black-piece'); }
+                    }
+                    container.appendChild(square);
+                }
+            }
+            // Renderiza as coordenadas
+            const rankContainer = document.getElementById('rank-coords');
+            const fileContainer = document.getElementById('file-coords');
+            rankContainer.innerHTML = '';
+            fileContainer.innerHTML = '';
+            RANKS.forEach(rank => { const div = document.createElement('div'); div.textContent = rank; rankContainer.appendChild(div); });
+            FILES.forEach(file => { const div = document.createElement('div'); div.textContent = file; fileContainer.appendChild(div); });
+            
+            // Re-aplica a visualização da rede se houver uma ativa
+            applyNetworkVisualization();
+        }
+        
+        /**
+         * Popula o seletor de redes no painel lateral.
+         * (MODIFICADO para ordenar por casas afetadas e renumerar)
+         */
+        function populateNetworkSelector(networks) {
+            const selector = document.getElementById('network-selector');
+            const clearButton = document.getElementById('clear-network-button');
+            selector.innerHTML = '<option value="none">Nenhuma</option>';
+            
+            if (networks.length === 0) {
+                selector.disabled = true;
+                clearButton.disabled = true;
+                return;
+            }
+            
+            // 1. Agrupa por descrição única
+            const uniqueNetworksMap = new Map();
+            networks.forEach(n => {
+                if (!uniqueNetworksMap.has(n.description)) {
+                    uniqueNetworksMap.set(n.description, n);
+                }
+            });
+            let uniqueNetworks = Array.from(uniqueNetworksMap.values());
+            
+            // 2. Ordena por número de casas afetadas (decrescente)
+            uniqueNetworks.sort((a, b) => b.numAffectedSquares - a.numAffectedSquares);
+
+            selector.disabled = false;
+            
+            // 3. Renumera e popula o seletor, atualizando o ID do objeto
+            let newId = 1;
+            uniqueNetworks.forEach(network => {
+                // Sobrescreve o ID temporário com o ID ordenado (que é o que usaremos para buscar a rede)
+                network.id = newId++; 
+                
+                const option = document.createElement('option');
+                option.value = network.id;
+                option.textContent = `#${network.id} (${network.numAffectedSquares} casas): ${PIECE_MAP[network.pieceA]}${network.attackerA} 🡒 ${PIECE_MAP[network.pieceB]}${network.targetB} 🡒 ${PIECE_MAP[network.pieceC]}${network.targetC}`;
+                selector.appendChild(option);
+            });
+            
+            // Reajusta o ID ativo (se houver, e se ele ainda for válido na nova ordenação)
+            if (activeNetworkId !== 'none') {
+                 const oldNetworkDescription = networks.find(n => n.id === parseInt(activeNetworkId))?.description;
+                 const foundNew = uniqueNetworks.find(n => n.description === oldNetworkDescription);
+                 activeNetworkId = foundNew ? foundNew.id : 'none';
+            }
+
+            selector.value = activeNetworkId;
+            clearButton.disabled = (activeNetworkId === 'none');
+        }
+
+        /**
+         * Manipulador de mudança do seletor de redes.
+         */
+        function handleNetworkSelectorChange(event) {
+            activeNetworkId = event.target.value;
+            applyNetworkVisualization();
+        }
+        
+        /**
+         * Desativa a visualização da rede e limpa o tabuleiro.
+         */
+        function handleClearNetwork() {
+            activeNetworkId = 'none';
+            document.getElementById('network-selector').value = 'none';
+            applyNetworkVisualization(); 
+            document.getElementById('clear-network-button').disabled = true;
+        }
+
+
+        /**
+         * Renderiza o painel de Análise Geral do FEN (Apenas Bloqueio/Limitação e Contato agora).
+         */
+        function renderPositionData(analysisResult) {
+            const panel = document.getElementById('analysis-results');
+            panel.innerHTML = '';
+
+            if (!analysisResult.isValid) {
+                panel.innerHTML = `<p style="color:red; font-weight:bold;">Erro: ${analysisResult.message}</p>`;
+                return;
+            }
+            
+            const contacts = analysisResult.contacts;
+            const blocked = analysisResult.blockedPieces;
+            const limited = analysisResult.limitedPieces;
+            const networks = analysisResult.compositionNetworks;
+            
+            // Popula o seletor de rede (isso também ordena e renumera a lista de redes no globalAnalysisResult)
+            populateNetworkSelector(networks);
+            
+            // Para exibição detalhada, usamos a lista de redes AGORA ordenada
+            // NOTA: A lista 'networks' agora contém os IDs ordenados após a chamada a populateNetworkSelector
+            const uniqueNetworks = Array.from(new Set(networks.map(n => n.description)))
+                                    .map(desc => networks.find(n => n.description === desc)); 
+            
+            // Re-ordena para exibição (necessário se o array foi modificado por referência)
+            uniqueNetworks.sort((a, b) => b.numAffectedSquares - a.numAffectedSquares); 
+
+            let networkHtml = `<div class="card-header" style="background-color: var(--network-color); color: white;">🔗 Redes de Composição Global</div>
+                <ul class="metric-list">
+                    <li><span>Total de Redes (2-Passos):</span> <span class="network">${uniqueNetworks.length}</span></li>
+                </ul>
+                <details style="margin-top: 10px; max-height: 200px; overflow-y: auto;">
+                    <summary>Clique para Ver Detalhes das Redes</summary>
+                    <p style="margin: 10px 0 5px 0; font-weight: bold; color: var(--network-color);">Redes (Ordem de Impacto):</p>
+                    ${uniqueNetworks.map(n => 
+                        `<div class="contact-item"><span class="network">Rede #${n.id} (${n.numAffectedSquares} casas):</span> ${n.description}</div>`
+                    ).join('')}
+                    ${uniqueNetworks.length === 0 ? '<div class="contact-item">Nenhuma rede de composição de 2 passos encontrada.</div>' : ''}
+                </details>`;
+            panel.innerHTML += `<div class="card">${networkHtml}</div>`;
+
+
+            // Card: Peças Bloqueadas e Limitadas 
+            let mobilityHtml = `<div class="card-header">🚧 Bloqueio e Limitação</div>
+                <ul class="metric-list">
+                    <li><span>Peças Bloqueadas (0 mov.):</span> <span class="status-blocked">${blocked.length}</span></li>
+                    <li><span>Peças Limitadas (< 3 mov.):</span> <span class="status-limited">${limited.length}</span></li>
+                </ul>
+                <details style="margin-top: 10px; max-height: 200px; overflow-y: auto; font-size: 0.9em;">
+                    <summary>Detalhes (Bloqueadas/Limitadas)</summary>
+                    <p style="margin: 5px 0 0 0;"><span class="status-blocked">Bloqueadas:</span> ${blocked.map(p => `${p.symbol}${p.square}`).join(', ')}</p>
+                    <p style="margin: 5px 0 0 0;"><span class="status-limited">Limitadas:</span> ${limited.map(p => `${p.symbol}${p.square} (${p.moves} mov)`).join(', ')}</p>
+                </details>`;
+            panel.innerHTML += `<div class="card">${mobilityHtml}</div>`;
+
+            // Card: Pontos de Contato 
+            const attacks = contacts.filter(c => c.type === 'Ataque');
+            const defenses = contacts.filter(c => c.type === 'Defesa');
+            
+            let contactsHtml = `<div class="card-header">⚔️ Pontos de Contato</div>
+                <ul class="metric-list">
+                    <li><span>Total de Contatos:</span> <span>${contacts.length}</span></li>
+                    <li><span>Ataques:</span> <span style="color: red;">${attacks.length}</span></li>
+                    <li><span>Defesas:</span> <span style="color: blue;">${defenses.length}</span></li>
+                </ul>
+                <details style="margin-top: 10px; max-height: 200px; overflow-y: auto;">
+                    <summary>Clique para Ver Detalhes (Ataques/Defesas)</summary>
+                    <p style="margin: 10px 0 5px 0; font-weight: bold; color: red;">Ataques (Peça 🡒 Alvo):</p>
+                    ${attacks.map(a => {
+                        const attackerSymbol = PIECE_MAP[a.attackerPiece];
+                        const targetSymbol = PIECE_MAP[a.targetPiece];
+                        return `<div class="contact-item"><span class="attack">Ataque:</span> ${attackerSymbol}${a.attacker} 🡒 ${targetSymbol}${a.target}</div>`;
+                    }).join('')}
+                    
+                    <p style="margin: 10px 0 5px 0; font-weight: bold; color: blue;">Defesas (Peça 🡒 Amigo):</p>
+                    ${defenses.map(d => {
+                        const attackerSymbol = PIECE_MAP[d.attackerPiece];
+                        const targetSymbol = PIECE_MAP[d.targetPiece];
+                        return `<div class="contact-item"><span class="defense">Defesa:</span> ${attackerSymbol}${d.attacker} 🡒 ${targetSymbol}${d.target}</div>`;
+                    }).join('')}
+                </details>`;
+            panel.innerHTML += `<div class="card">${contactsHtml}</div>`;
+        }
+
+
+        // --- FUNÇÕES DE VISÃO GERAL ---
+
+        /**
+         * Renderiza a lista de Visão Geral de Peças no painel.
+         */
+        function renderBoardOverview(analysisResult) {
+            const listContainer = document.getElementById('overview-list');
+            listContainer.innerHTML = '';
+
+            if (!analysisResult || !analysisResult.isValid) {
+                 listContainer.innerHTML = `<li>Aguardando FEN válido...</li>`;
+                 return;
+            }
+
+            // Mapeia as peças
+            const pieceList = Object.keys(analysisResult.pieceMobility).map(square => {
+                const mobility = analysisResult.pieceMobility[square];
+                const piece = mobility.piece;
+                const symbol = PIECE_MAP[piece];
+                
+                let statusClass = '';
+                let statusText = `${mobility.total} mov`;
+
+                if (mobility.total === 0) { statusClass = 'status-blocked'; statusText = 'BLOQUEADA'; }
+                else if (mobility.total < 3) { statusClass = 'status-limited'; statusText = `LIMITADA (${mobility.total})`; }
+
+                return { square, piece, symbol, statusClass, statusText };
+            });
+            
+            if (pieceList.length === 0) {
+                 listContainer.innerHTML = `<li>Nenhuma peça encontrada.</li>`;
+                 return;
+            }
+
+            // Renderiza a lista
+            pieceList.forEach(item => {
+                const listItem = document.createElement('li');
+                listItem.innerHTML = `
+                    <span>${item.symbol}${item.square}</span>
+                    <span class="${item.statusClass}">${item.statusText}</span>
+                `;
+                // Ao clicar na lista, simula o clique no tabuleiro
+                listItem.addEventListener('click', () => {
+                    const squareDiv = document.querySelector(`[data-square="${item.square}"]`);
+                    if (squareDiv) {
+                        squareDiv.click(); 
+                        document.getElementById('analysis-panel').scrollTop = 0; // Move para o topo para ver os detalhes
+                    }
+                });
+                listContainer.appendChild(listItem);
+            });
+        }
+        
+        // --- FUNÇÕES DE CONTROLE DE EXPANSÃO (DETALHES) ---
+
+        /**
+         * Fecha todos os elementos <details> que não são o alvo clicado.
+         */
+        function closeOtherDetails(targetDetails = null) {
+            document.querySelectorAll('details').forEach(detail => {
+                if (detail !== targetDetails) {
+                    detail.open = false;
+                }
+            });
+        }
+        
+        /**
+         * Esconde os painéis de detalhes.
+         */
+        function hideDetailPanels() {
+            document.getElementById('clicked-square-details').classList.add('hidden-detail-card');
+            document.getElementById('clicked-piece-details').classList.add('hidden-detail-card');
+            document.querySelectorAll('.square').forEach(sq => sq.classList.remove('highlight'));
+        }
+
+
+        /**
+         * Manipulador de eventos de clique em todo o documento.
+         * Garante que apenas um <details> seja aberto por vez e DESAPARECE OS CARDS se clicar fora
+         */
+        function handleGlobalClick(event) {
+            const clickedElement = event.target;
+            
+            // Elementos que não devem causar o fechamento/ocultamento
+            const keepOpenElements = [
+                document.getElementById('analysis-panel'),
+                document.getElementById('board-wrapper'),
+                document.getElementById('clear-network-button')
+            ];
+
+            // Se o clique foi dentro da área de análise ou do tabuleiro, não faz nada (além da lógica de <details>)
+            const isInsideProtectedArea = keepOpenElements.some(el => el && el.contains(clickedElement) || clickedElement.closest('#analysis-panel'));
+
+            if (!isInsideProtectedArea) {
+                // Se clicou fora do tabuleiro e do painel de análise, oculta os cards de detalhe
+                hideDetailPanels();
+                closeOtherDetails(null);
+                return; 
+            }
+            
+            // 1. Lógica de <details> (Expansão de detalhes)
+            const clickedDetails = clickedElement.closest('details');
+
+            if (clickedDetails) {
+                setTimeout(() => {
+                    closeOtherDetails(clickedDetails);
+                }, 1);
+                
+            } else {
+                // Se o clique foi fora de qualquer <details>
+                // Apenas feche os detalhes se o clique não for dentro de uma lista de visão geral (para permitir a rolagem)
+                if (!clickedElement.closest('#board-overview')) {
+                    closeOtherDetails(null);
+                }
+            }
+        }
+
+
+        // --- INICIALIZAÇÃO E MANIPULAÇÃO PRINCIPAL ---
+
+        /**
+         * Função principal acionada pelo botão Analisar.
+         */
+        function handleParseAndRender() {
+            const fenInput = document.getElementById('fen-input').value.trim();
+            const validationMessage = document.getElementById('validation-message');
+            
+            const analysisResult = parseAndAnalyzeFen(fenInput);
+
+            if (analysisResult.isValid) {
+                validationMessage.textContent = 'SUCESSO: FEN válido e analisado. Clique em uma casa para mais detalhes.';
+                validationMessage.style.color = 'green';
+                globalAnalysisResult = analysisResult;
+                renderBoard(analysisResult.board);
+            } else {
+                validationMessage.textContent = `ERRO: ${analysisResult.message}`;
+                validationMessage.style.color = 'red';
+                globalAnalysisResult = null;
+                document.getElementById('chessboard-container').innerHTML = '';
+            }
+
+            // Reseta a visualização da rede para "Nenhuma"
+            handleClearNetwork();
+            
+            renderPositionData(analysisResult); // Atualiza o painel de dados e o seletor
+            renderBoardOverview(analysisResult); // Atualiza a visão geral
+            
+            // Esconde os painéis de detalhes e o realce do quadrado ao carregar nova análise
+            hideDetailPanels();
+            
+            // Fecha todos os detalhes expandidos ao carregar nova análise
+            closeOtherDetails(null);
+        }
+
+        // --- EVENTO DE CARREGAMENTO INICIAL ---
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('parse-button').addEventListener('click', handleParseAndRender);
+            
+            // Adiciona o listener para o novo seletor de rede
+            document.getElementById('network-selector').addEventListener('change', handleNetworkSelectorChange);
+            
+            // Adiciona o listener para o botão de limpar
+            document.getElementById('clear-network-button').addEventListener('click', handleClearNetwork);
+            
+            handleParseAndRender(); // Executa a análise inicial com o FEN padrão
+            
+            // Adiciona o listener global para fechar/abrir detalhes condicionalmente
+            document.addEventListener('click', handleGlobalClick);
+        });
+
+    </script>
+</body>
+</html>
