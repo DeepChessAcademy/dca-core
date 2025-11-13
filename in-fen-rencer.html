@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FEN Chess Analyzer COMPLETO e Interativo</title>
+    <title>FEN Chess Analyzer - Avaliação Estática Completa</title>
     <style>
         /* Variáveis de Layout */
         :root {
@@ -11,12 +11,15 @@
             --board-size: calc(8 * var(--square-size));
             --coord-size: 20px;
             --border-width: 5px;
-            --panel-width: 350px;
+            --panel-width: 380px; /* Aumentado para mais infos */
             --main-color: #4CAF50; /* Verde */
-            --blocked-color: #d9534f; /* Vermelho */
-            --limited-color: #f0ad4e; /* Laranja */
+            --blocked-color: #d9534f; /* Vermelho (Bloqueado/Pendente) */
+            --limited-color: #f0ad4e; /* Laranja (Limitado/Sobrecarregado) */
             --highlight-color: #3f7b9e; /* Azul Escuro */
             --network-color: #9c27b0; /* Roxo */
+            --positive-score: #006400; /* Verde Escuro */
+            --negative-score: #8B0000; /* Vermelho Escuro */
+
             /* CORES NOVAS: Hierarquia de Impacto (Roxo) */
             --net-dark-purple: rgba(100, 0, 150, 0.7); /* Roxo Escuro: Peça de Maior Impacto (Rei/Foco) */
             --net-light-purple: rgba(180, 100, 200, 0.5); /* Roxo Claro: Peças de Impacto Secundário (Torre/Peão/Defensoras) */
@@ -39,7 +42,7 @@
             align-items: flex-start;
             gap: 30px;
             width: 100%;
-            max-width: 1200px;
+            max-width: 1250px; /* Aumentado */
         }
 
         h1, p { text-align: center; width: 100%; }
@@ -103,14 +106,8 @@
         .black-piece { color: black; }
 
         /* Estilos de Rede Ativa (HIERARQUIA DE CORES) */
-        /* Roxo Escuro: Rei (Principal Atacado/Foco) */
-        .square.net-dark {
-            background-color: var(--net-dark-purple) !important; 
-        }
-        /* Roxo Claro: Peças Secundárias e Defendidas (Torre/Peão/Defensoras) */
-        .square.net-light {
-            background-color: var(--net-light-purple) !important; 
-        }
+        .square.net-dark { background-color: var(--net-dark-purple) !important; }
+        .square.net-light { background-color: var(--net-light-purple) !important; }
 
 
         #file-coords {
@@ -140,16 +137,28 @@
         #analysis-panel h2 { border-bottom: 2px solid #eee; padding-bottom: 5px; color: #333; margin-top: 0; }
         .card { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 6px; background-color: #fafafa; }
         .card-header { font-weight: bold; color: var(--main-color); margin-bottom: 10px; font-size: 1.1em; }
+        
+        /* NOVO: Header com cores */
+        .card-header-white { background-color: #f8f8f8; color: #333; }
+        .card-header-black { background-color: #555; color: white; }
+        .card-header-neutral { background-color: #337ab7; color: white; }
+        .card-header-pawn { background-color: #778899; color: white; }
+        .card-header-king { background-color: #FFD700; color: #333; }
+        
         .metric-list { list-style: none; padding: 0; margin: 0; }
-        .metric-list li { padding: 3px 0; border-bottom: 1px dashed #eee; display: flex; justify-content: space-between; }
+        .metric-list li { padding: 3px 0; border-bottom: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center; }
         .metric-list li:last-child { border-bottom: none; }
+        .metric-list .metric-value { font-weight: bold; text-align: right; }
+        .metric-list .metric-value.positive { color: var(--positive-score); }
+        .metric-list .metric-value.negative { color: var(--negative-score); }
+        
         .contact-item { font-size: 0.9em; padding: 5px 0; border-bottom: 1px dotted #ccc; }
         .contact-item span.attack { color: red; font-weight: bold; }
         .contact-item span.defense { color: blue; }
         .contact-item span.network { color: var(--network-color); font-weight: bold; }
 
-        .status-blocked { color: var(--blocked-color); font-weight: bold; }
-        .status-limited { color: var(--limited-color); font-weight: bold; }
+        .status-blocked, .status-hanging { color: var(--blocked-color); font-weight: bold; }
+        .status-limited, .status-overloaded { color: var(--limited-color); font-weight: bold; }
         
         /* Estilo para cards de detalhes (Casa/Peça) */
         #clicked-square-details .card-header,
@@ -163,31 +172,42 @@
             font-size: 1.2em;
         }
         
-        /* Adicionado: Estilo para ocultar inicialmente os painéis de detalhes */
-        .hidden-detail-card {
-            display: none;
+        .hidden-detail-card { display: none; }
+        
+        #clear-network-button {
+            padding: 5px 10px; font-size: 14px; cursor: pointer;
+            background-color: var(--blocked-color); color: white;
+            border: none; border-radius: 4px; margin-top: 10px; width: 100%;
         }
         
-        /* NOVO: Estilo para o botão de limpar rede */
-        #clear-network-button {
-            padding: 5px 10px;
-            font-size: 14px;
-            cursor: pointer;
-            background-color: var(--blocked-color);
+        /* NOVO: Estilo para Sumário de Pontuação */
+        #score-summary-card {
+            background-color: #333;
             color: white;
-            border: none;
-            border-radius: 4px;
-            margin-top: 10px;
-            width: 100%;
+            padding: 20px;
+            text-align: center;
+        }
+        #score-summary-card h2 {
+            margin: 0 0 10px 0;
+            border-bottom: 1px solid #555;
+            padding-bottom: 10px;
+        }
+        #total-score-display {
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        #score-breakdown {
+            font-size: 0.9em;
+            color: #ccc;
         }
     </style>
 </head>
 <body>
 
-    <h1>♟️ FEN Chess Analyzer COMPLETO</h1>
+    <h1>♟️ FEN Chess Analyzer - Avaliação Estática</h1>
     
     <div class="input-group">
-        <input type="text" id="fen-input" value="3Q2kr/2p2p2/6pp/1p2P2N/1qb1N1P1/3p3P/5P2/6K1 b - - 3 35">
+        <input type="text" id="fen-input" value="4r1k1/5ppp/p2B1n2/8/2pP4/2q4P/P4PP1/1Q2R1K1 w - - 0 1">
         <button id="parse-button">Analisar & Renderizar</button>
         <div id="validation-message"></div>
     </div>
@@ -216,6 +236,45 @@
                 </div>
             </div>
 
+            <div id="score-summary-card" class="card">
+                <h2>Pontuação Total</h2>
+                <div id="total-score-display">+0.00</div>
+                <div id="score-breakdown">(Material + Posição)</div>
+            </div>
+
+            <div id="material-balance-card" class="card">
+                <div class="card-header card-header-neutral" style="background-color: #607D8B;">⚖️ Balanço Material</div>
+                <ul class="metric-list" id="material-balance-list">
+                    <li>Aguardando análise...</li>
+                </ul>
+            </div>
+            
+            <div id="positional-score-card" class="card">
+                <div class="card-header card-header-neutral" style="background-color: #0277BD;">🗺️ Vantagem Posicional (PST)</div>
+                <ul class="metric-list" id="positional-score-list">
+                    <li>Aguardando análise...</li>
+                </ul>
+            </div>
+            
+            <div id="pawn-structure-card" class="card">
+                <div class="card-header card-header-pawn">♟️ Estrutura de Peões</div>
+                <div id="pawn-structure-analysis">Aguardando análise...</div>
+            </div>
+
+            <div id="king-safety-card" class="card">
+                <div class="card-header card-header-king">👑 Segurança do Rei</div>
+                <div id="king-safety-analysis">Aguardando análise...</div>
+            </div>
+
+            <div id="board-overview" class="card" style="margin-top: 20px;">
+                <div class="card-header card-header-neutral">📋 Visão Geral de Peças</div>
+                <ul id="overview-list" class="metric-list" style="max-height: 250px; overflow-y: auto;">
+                    <li>Aguardando análise...</li>
+                </ul>
+            </div>
+            
+            <h2>🔎 Detalhes da Posição (Táticas Imediatas)</h2>
+            
             <div id="network-controls" class="card" style="margin-top: 10px;">
                 <div class="card-header" style="background-color: var(--network-color); color: white;">🔗 Visualizar Redes</div>
                 <div style="padding: 5px;">
@@ -227,14 +286,6 @@
                 </div>
             </div>
             
-            <div id="board-overview" class="card" style="margin-top: 20px;">
-                <div class="card-header" style="background-color: #337ab7; color: white;">📋 Visão Geral de Peças</div>
-                <ul id="overview-list" class="metric-list" style="max-height: 250px; overflow-y: auto;">
-                    <li>Aguardando análise...</li>
-                </ul>
-            </div>
-
-            <h2>🔎 Detalhes da Posição Geral</h2>
             <div id="analysis-results">
                 <p>Aguardando análise...</p>
             </div>
@@ -251,26 +302,100 @@
         const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1']; // Fileiras [0] a [7] (do topo para baixo)
         const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']; // Colunas
         
-        let globalAnalysisResult = null; // Armazena o resultado completo da análise FEN
-        let activeNetworkId = 'none'; // ID da rede atualmente selecionada para visualização
+        // NOVO: Valor das Peças (em pontos de peão)
+        const PIECE_VALUES = {
+            'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0,
+            'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 0
+        };
+
+        // NOVO: Piece-Square Tables (PST) - Valores em Centipawns (100 = 1 peão)
+        // Tabelas padrão (simplificadas) para "meio de jogo"
+        const PST_PAWN = [
+             0,  0,  0,  0,  0,  0,  0,  0,
+             5, 10, 10,-20,-20, 10, 10,  5,
+             5, -5,-10,  0,  0,-10, -5,  5,
+             0,  0,  0, 20, 20,  0,  0,  0,
+             5,  5, 10, 25, 25, 10,  5,  5,
+            10, 10, 20, 30, 30, 20, 10, 10,
+            50, 50, 50, 50, 50, 50, 50, 50,
+             0,  0,  0,  0,  0,  0,  0,  0
+        ];
+        const PST_KNIGHT = [
+            -50,-40,-30,-30,-30,-30,-40,-50,
+            -40,-20,  0,  5,  5,  0,-20,-40,
+            -30,  5, 10, 15, 15, 10,  5,-30,
+            -30,  0, 15, 20, 20, 15,  0,-30,
+            -30,  5, 15, 20, 20, 15,  5,-30,
+            -30,  0, 10, 15, 15, 10,  0,-30,
+            -40,-20,  0,  0,  0,  0,-20,-40,
+            -50,-40,-30,-30,-30,-30,-40,-50
+        ];
+        const PST_BISHOP = [
+            -20,-10,-10,-10,-10,-10,-10,-20,
+            -10,  5,  0,  0,  0,  0,  5,-10,
+            -10, 10, 10, 10, 10, 10, 10,-10,
+            -10,  0, 10, 10, 10, 10,  0,-10,
+            -10,  5,  5, 10, 10,  5,  5,-10,
+            -10,  0,  5, 10, 10,  5,  0,-10,
+            -10,  0,  0,  0,  0,  0,  0,-10,
+            -20,-10,-10,-10,-10,-10,-10,-20
+        ];
+        const PST_ROOK = [
+             0,  0,  0,  5,  5,  0,  0,  0,
+            -5,  0,  0,  0,  0,  0,  0, -5,
+            -5,  0,  0,  0,  0,  0,  0, -5,
+            -5,  0,  0,  0,  0,  0,  0, -5,
+            -5,  0,  0,  0,  0,  0,  0, -5,
+            -5,  0,  0,  0,  0,  0,  0, -5,
+             5, 10, 10, 10, 10, 10, 10,  5,
+             0,  0,  0,  0,  0,  0,  0,  0
+        ];
+        const PST_QUEEN = [
+            -20,-10,-10, -5, -5,-10,-10,-20,
+            -10,  0,  5,  0,  0,  0,  0,-10,
+            -10,  5,  5,  5,  5,  5,  0,-10,
+             0,  0,  5,  5,  5,  5,  0, -5,
+            -5,  0,  5,  5,  5,  5,  0, -5,
+            -10,  0,  5,  5,  5,  5,  0,-10,
+            -10,  0,  0,  0,  0,  0,  0,-10,
+            -20,-10,-10, -5, -5,-10,-10,-20
+        ];
+        // PST do Rei (prioriza roque e centro seguro)
+        const PST_KING_MIDDLE = [
+             20, 30, 10,  0,  0, 10, 30, 20,
+             20, 20,  0,  0,  0,  0, 20, 20,
+            -10,-20,-20,-20,-20,-20,-20,-10,
+            -20,-30,-30,-40,-40,-30,-30,-20,
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -30,-40,-40,-50,-50,-40,-40,-30
+        ];
+        
+        const PST_MAP = {
+            'p': PST_PAWN, 'P': PST_PAWN,
+            'n': PST_KNIGHT, 'N': PST_KNIGHT,
+            'b': PST_BISHOP, 'B': PST_BISHOP,
+            'r': PST_ROOK, 'R': PST_ROOK,
+            'q': PST_QUEEN, 'Q': PST_QUEEN,
+            'k': PST_KING_MIDDLE, 'K': PST_KING_MIDDLE
+        };
+        
+        let globalAnalysisResult = null; 
+        let activeNetworkId = 'none'; 
 
         // --- FUNÇÕES DE UTENSÍLIO E MÉTODOS DE BUSCA ---
-
-        /**
-         * Retorna a peça e seus detalhes em uma casa específica.
-         */
         function getPieceAtSquare(squareName, board) {
              const fileIndex = FILES.indexOf(squareName[0]);
              const rankIndex = RANKS.indexOf(squareName[1]);
              if (fileIndex === -1 || rankIndex === -1 || !board) return null;
              return board[rankIndex][fileIndex];
         }
+        
+        const getSquareName = (r, c) => `${FILES[c]}${RANKS[r]}`; 
 
         // --- FUNÇÕES DE PARSING E ANÁLISE ---
         
-        /**
-         * Converte uma string FEN em uma estrutura de dados de tabuleiro.
-         */
         function parseFenToData(fen) {
             const data = {
                 isValid: false, message: 'FEN inválido', board: null, activeColor: null, 
@@ -289,7 +414,13 @@
                 let squareCount = 0;
                 for (const char of ranksArr[r]) {
                     if (VALID_PIECES.includes(char)) {
-                        rank.push({ piece: char, square: `${FILES[squareCount]}${RANKS[r]}`, color: char === char.toUpperCase() ? 'white' : 'black' });
+                        rank.push({ 
+                            piece: char, 
+                            square: `${FILES[squareCount]}${RANKS[r]}`, 
+                            color: char === char.toUpperCase() ? 'white' : 'black',
+                            r: r, // Salva coordenadas para facilitar
+                            c: squareCount // Salva coordenadas para facilitar
+                        });
                         squareCount++;
                     } else if (/\d/.test(char)) {
                         const numEmpty = parseInt(char);
@@ -315,20 +446,211 @@
         }
 
         /**
-         * Conta o total de peças por cor e por tipo.
+         * NOVO: Conta material ponderado e peças.
          */
-        function countPieces(board) {
+        function analyzeMaterialAndCounts(board) {
             const counts = { total: 0, white: 0, black: 0, byType: { K: 0, Q: 0, R: 0, B: 0, N: 0, P: 0, k: 0, q: 0, r: 0, b: 0, n: 0, p: 0 } };
+            const material = { white: 0, black: 0, balance: 0 };
+            
             board.flat().forEach(square => {
                 if (square && square.piece) {
+                    const piece = square.piece;
                     counts.total++;
-                    counts.byType[square.piece]++;
-                    if (square.piece === square.piece.toUpperCase()) { counts.white++; } else { counts.black++; }
+                    counts.byType[piece]++;
+                    
+                    const value = PIECE_VALUES[piece];
+                    if (square.color === 'white') {
+                        counts.white++;
+                        material.white += value;
+                    } else {
+                        counts.black++;
+                        material.black += value;
+                    }
                 }
             });
-            return counts;
+            material.balance = material.white - material.black;
+            return { counts, material };
         }
         
+        /**
+         * NOVO: Calcula a pontuação posicional (PST) em centipawns.
+         */
+        function analyzePositionalScore(board) {
+            let scoreWhite = 0;
+            let scoreBlack = 0;
+            
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const pieceObj = board[r][c];
+                    if (!pieceObj) continue;
+                    
+                    const piece = pieceObj.piece;
+                    const pst = PST_MAP[piece];
+                    if (!pst) continue;
+                    
+                    let index;
+                    if (pieceObj.color === 'white') {
+                        // Para brancas, a tabela é lida do início (r=0 é fileira 8)
+                        // Nossas tabelas estão definidas de A8 (índice 0) para H1 (índice 63)
+                        index = r * 8 + c;
+                        scoreWhite += pst[index];
+                    } else {
+                        // Para pretas, a tabela é espelhada verticalmente
+                        // O 'r' da preta é (7-r) para a branca
+                        index = (7 - r) * 8 + c;
+                        scoreBlack += pst[index];
+                    }
+                }
+            }
+            
+            const balance = (scoreWhite - scoreBlack) / 100; // Converte para peões
+            
+            return {
+                white: scoreWhite,
+                black: scoreBlack,
+                balance: balance
+            };
+        }
+        
+        /**
+         * NOVO: Analisa a estrutura de peões (Dobrados, Isolados, Passados).
+         */
+        function analyzePawnStructure(board) {
+            const whitePawns = [];
+            const blackPawns = [];
+            const pawnsByFile = Array(8).fill(null).map(() => ({ white: [], black: [] }));
+
+            board.flat().forEach(p => {
+                if (p && p.piece.toUpperCase() === 'P') {
+                    if (p.color === 'white') {
+                        whitePawns.push(p);
+                        pawnsByFile[p.c].white.push(p);
+                    } else {
+                        blackPawns.push(p);
+                        pawnsByFile[p.c].black.push(p);
+                    }
+                }
+            });
+            
+            const structure = {
+                white: { doubled: [], isolated: [], passed: [] },
+                black: { doubled: [], isolated: [], passed: [] }
+            };
+
+            for (let c = 0; c < 8; c++) {
+                const whiteInFile = pawnsByFile[c].white;
+                const blackInFile = pawnsByFile[c].black;
+                
+                // 1. Peões Dobrados
+                if (whiteInFile.length > 1) whiteInFile.forEach(p => structure.white.doubled.push(p.square));
+                if (blackInFile.length > 1) blackInFile.forEach(p => structure.black.doubled.push(p.square));
+                
+                // 2. Peões Isolados
+                const noAdjacentWhite = (pawnsByFile[c-1]?.white.length === 0) && (pawnsByFile[c+1]?.white.length === 0);
+                if (whiteInFile.length > 0 && noAdjacentWhite) whiteInFile.forEach(p => structure.white.isolated.push(p.square));
+                
+                const noAdjacentBlack = (pawnsByFile[c-1]?.black.length === 0) && (pawnsByFile[c+1]?.black.length === 0);
+                if (blackInFile.length > 0 && noAdjacentBlack) blackInFile.forEach(p => structure.black.isolated.push(p.square));
+            }
+            
+            // 3. Peões Passados (mais complexo)
+            whitePawns.forEach(p => {
+                let isPassed = true;
+                for (let fc = p.c - 1; fc <= p.c + 1; fc++) {
+                    if (fc < 0 || fc > 7) continue;
+                    // Se houver qualquer peão preto *à frente* (r < p.r), não é passado
+                    if (pawnsByFile[fc].black.some(bp => bp.r < p.r)) {
+                        isPassed = false;
+                        break;
+                    }
+                }
+                if (isPassed) structure.white.passed.push(p.square);
+            });
+            
+            blackPawns.forEach(p => {
+                let isPassed = true;
+                for (let fc = p.c - 1; fc <= p.c + 1; fc++) {
+                    if (fc < 0 || fc > 7) continue;
+                    // Se houver qualquer peão branco *à frente* (r > p.r), não é passado
+                    if (pawnsByFile[fc].white.some(wp => wp.r > p.r)) {
+                        isPassed = false;
+                        break;
+                    }
+                }
+                if (isPassed) structure.black.passed.push(p.square);
+            });
+
+            return structure;
+        }
+
+        /**
+         * NOVO: Analisa a segurança do Rei (Escudo de Peões, Arquivos Abertos).
+         */
+        function analyzeKingSafety(board) {
+            const kings = { white: null, black: null };
+            const pawnsByFile = Array(8).fill(null).map(() => ({ white: 0, black: 0 }));
+
+            board.flat().forEach(p => {
+                if (!p) return;
+                if (p.piece === 'K') kings.white = p;
+                else if (p.piece === 'k') kings.black = p;
+                else if (p.piece === 'P') pawnsByFile[p.c].white++;
+                else if (p.piece === 'p') pawnsByFile[p.c].black++;
+            });
+
+            const safety = {
+                white: { shield: 0, openFiles: [] },
+                black: { shield: 0, openFiles: [] }
+            };
+
+            // Função auxiliar para verificar o escudo
+            const checkShield = (king, color) => {
+                if (!king) return 0;
+                let score = 0;
+                const shieldR = (color === 'white') ? king.r - 1 : king.r + 1; // Fileira à frente do rei
+                if (shieldR < 0 || shieldR > 7) return 0; // Rei na borda
+
+                for (let dc = -1; dc <= 1; dc++) {
+                    const shieldC = king.c + dc;
+                    if (shieldC < 0 || shieldC > 7) continue;
+                    
+                    const piece = board[shieldR][shieldC];
+                    if (piece && piece.piece.toUpperCase() === 'P' && piece.color === color) {
+                        score += 1; // Bom: peão amigo
+                    } else if (!piece) {
+                        score -= 1; // Ruim: casa vazia
+                    }
+                    // Peão inimigo ou outra peça: não pontua
+                }
+                return score;
+            };
+
+            safety.white.shield = checkShield(kings.white, 'white');
+            safety.black.shield = checkShield(kings.black, 'black');
+
+            // Função auxiliar para verificar arquivos abertos
+            const checkOpenFiles = (king) => {
+                if (!king) return [];
+                const open = [];
+                for (let dc = -1; dc <= 1; dc++) {
+                    const file = king.c + dc;
+                    if (file < 0 || file > 7) continue;
+                    
+                    if (pawnsByFile[file].white === 0 && pawnsByFile[file].black === 0) {
+                        open.push({ file: FILES[file], type: 'Aberto' });
+                    } else if (pawnsByFile[file].white === 0 || pawnsByFile[file].black === 0) {
+                        open.push({ file: FILES[file], type: 'Semi-Aberto' });
+                    }
+                }
+                return open;
+            };
+
+            safety.white.openFiles = checkOpenFiles(kings.white);
+            safety.black.openFiles = checkOpenFiles(kings.black);
+            
+            return safety;
+        }
+
         /**
          * Realiza a análise de controle de casas, mobilidade e contatos.
          */
@@ -347,10 +669,9 @@
             const contacts = []; 
             const pieceMobility = {}; 
             
-            const contactsByTarget = {}; // { targetSquare: [{attacker, type, piece}, ...] }
-            const contactsByAttacker = {}; // { attackerSquare: [{target, type, piece}, ...] }
+            const contactsByTarget = {}; 
+            const contactsByAttacker = {}; 
             
-            const getSquareName = (r, c) => `${FILES[c]}${RANKS[r]}`; 
             const isOppositeColor = (piece1, piece2) => (piece1 === piece1.toUpperCase()) !== (piece2 === piece2.toUpperCase());
             
             for (let r = 0; r < 8; r++) {
@@ -363,12 +684,8 @@
                     
                     pieceMobility[square] = { total: 0, contacts: 0, free: 0, piece: piece, color: color, square: square };
                     
-                    
-                    // --- LÓGICA EXCLUSIVA DE AVANÇO DO PEÃO (MOBILIDADE CORRIGIDA) ---
                     if (pieceType === 'P') {
                         const rankDelta = (piece === 'P' ? -1 : 1); 
-                        
-                        // 1. Avanço de 1 casa
                         let nextR1 = r + rankDelta;
                         let nextC = c;
                         
@@ -376,8 +693,6 @@
                             if (!board[nextR1][nextC]) {
                                 pieceMobility[square].total++;
                                 pieceMobility[square].free++;
-                                
-                                // 2. Avanço de 2 casas
                                 if ((piece === 'P' && r === 6) || (piece === 'p' && r === 1)) {
                                     let nextR2 = r + 2 * rankDelta;
                                     if (nextR2 >= 0 && nextR2 < 8 && !board[nextR2][nextC]) {
@@ -388,8 +703,6 @@
                             }
                         }
                     }
-                    // --- FIM DA LÓGICA DE AVANÇO DO PEÃO ---
-
 
                     const vectors = MOVES[pieceType === 'P' ? piece : pieceType];
                     if (!vectors) continue;
@@ -407,7 +720,6 @@
                             const targetPieceObj = board[nextR][nextC];
                             const targetPiece = targetPieceObj ? targetPieceObj.piece : null;
                             
-                            // 1. REGISTRO DE CASAS CONTROLADAS
                             const controlColor = color;
                             if (!controlledSquares[controlColor][targetSquareName]) {
                                 controlledSquares[controlColor][targetSquareName] = [];
@@ -415,10 +727,7 @@
                             controlledSquares[controlColor][targetSquareName].push(square);
                             controlledSquares.total++;
 
-
-                            // 2. PONTOS DE CONTATO & MOBILIDADE LIVRE
                             if (targetPiece) {
-                                // Contato: Ataque ou Defesa
                                 const contactType = isOppositeColor(piece, targetPiece) ? 'Ataque' : 'Defesa';
                                 const newContact = { 
                                     type: contactType, 
@@ -429,21 +738,17 @@
                                 };
                                 contacts.push(newContact);
                                 
-                                // Popula as estruturas de mapeamento para análise de rede
                                 if (!contactsByTarget[targetSquareName]) contactsByTarget[targetSquareName] = [];
-                                contactsByTarget[targetSquareName].push({ attacker: square, type: contactType, piece: piece });
+                                contactsByTarget[targetSquareName].push({ attacker: square, type: contactType, piece: piece, color: color });
 
                                 if (!contactsByAttacker[square]) contactsByAttacker[square] = [];
                                 contactsByAttacker[square].push({ target: targetSquareName, type: contactType, piece: targetPiece });
 
-
                                 pieceMobility[square].total++;
                                 pieceMobility[square].contacts++;
                                 
-                                // Parar peças deslizantes em qualquer peça 
                                 if (maxDist > 1) break; 
                             } else {
-                                // Mobilidade Livre (Casas VAZIAS)
                                 if (pieceType !== 'P') {
                                     pieceMobility[square].total++;
                                     pieceMobility[square].free++;
@@ -457,7 +762,6 @@
                 }
             }
             
-            // --- CÁLCULO DE BLOQUEIO E LIMITAÇÃO ---
             const blockedPieces = [];
             const limitedPieces = [];
             const LIMIT_THRESHOLD = 3;
@@ -478,8 +782,49 @@
         }
 
         /**
+         * NOVO: Identifica Peças Suspensas e Sobrecarregadas.
+         */
+        function analyzeTacticalVulnerabilities(board, contactsByTarget, contactsByAttacker) {
+            const hanging = [];
+            const overloaded = [];
+
+            board.flat().forEach(pieceObj => {
+                if (!pieceObj) return;
+
+                const square = pieceObj.square;
+                const color = pieceObj.color;
+                
+                // 1. Peças Suspensas (Hanging)
+                const contactsToMe = contactsByTarget[square] || [];
+                const myAttackers = contactsToMe.filter(c => c.type === 'Ataque');
+                const myDefenders = contactsToMe.filter(c => c.type === 'Defesa');
+
+                if (myAttackers.length > 0 && myDefenders.length === 0) {
+                    hanging.push({
+                        square: square,
+                        piece: pieceObj.piece,
+                        attackers: myAttackers.map(a => a.attacker)
+                    });
+                }
+                
+                // 2. Peças Sobrecarregadas (Overloaded)
+                const contactsFromMe = contactsByAttacker[square] || [];
+                const defendedPieces = contactsFromMe.filter(c => c.type === 'Defesa');
+                
+                if (defendedPieces.length >= 2) {
+                    overloaded.push({
+                        square: square,
+                        piece: pieceObj.piece,
+                        defending: defendedPieces.map(d => d.target)
+                    });
+                }
+            });
+            
+            return { hanging, overloaded };
+        }
+
+        /**
          * Analisa as redes de composição (cadeias de contatos de 2 passos: A -> B -> C).
-         * (MODIFICADO: Adicionado cálculo de casas afetadas)
          */
         function analyzeCompositionNetworks(contactsByAttacker, contactsByTarget, board) {
             const networks = [];
@@ -505,7 +850,6 @@
                             const typeBC = contactBC.type; 
                             const pieceC = contactBC.piece;
 
-                            // Adiciona a lógica para determinar o impacto (casas únicas)
                             const squares = [attackerA, targetB, targetC];
                             const uniqueSquares = Array.from(new Set(squares));
                             
@@ -519,7 +863,7 @@
                                 pieceC: pieceC,
                                 typeAB: typeAB,
                                 typeBC: typeBC,
-                                numAffectedSquares: uniqueSquares.length, // NOVO: Casas afetadas
+                                numAffectedSquares: uniqueSquares.length,
                                 description: `${PIECE_MAP[pieceA]}${attackerA} ${typeAB.toLowerCase()} ${PIECE_MAP[pieceB_Obj.piece]}${targetB} que ${typeBC.toLowerCase()} ${PIECE_MAP[pieceC]}${targetC}`
                             });
                         });
@@ -538,56 +882,52 @@
             const data = parseFenToData(fen);
             if (!data.isValid) return data;
 
-            data.pieceCounts = countPieces(data.board); 
-            const analysis = analyzeBoard(data.board);
+            // Análises de Nível 1 (Básicas)
+            const { counts, material } = analyzeMaterialAndCounts(data.board);
+            data.pieceCounts = counts;
+            data.material = material;
             
+            // Análises de Nível 2 (Posicionais)
+            data.positionalScore = analyzePositionalScore(data.board);
+            data.pawnStructure = analyzePawnStructure(data.board);
+            
+            // Análises de Nível 3 (Interações)
+            const analysis = analyzeBoard(data.board);
             data.controlledSquares = analysis.controlledSquares;
             data.contacts = analysis.contacts;
             data.blockedPieces = analysis.blockedPieces;
             data.limitedPieces = analysis.limitedPieces;
-            
-            globalAnalysisResult = data;
-            data.compositionNetworks = analyzeCompositionNetworks(analysis.contactsByAttacker, analysis.contactsByTarget, data.board); 
             data.contactsByTarget = analysis.contactsByTarget; 
             data.contactsByAttacker = analysis.contactsByAttacker; 
+            data.pieceMobility = analysis.pieceMobility;
+
+            // Análises de Nível 4 (Vulnerabilidades e Redes)
+            data.kingSafety = analyzeKingSafety(data.board); // (depende da pré-análise de peões)
+            data.vulnerabilities = analyzeTacticalVulnerabilities(data.board, analysis.contactsByTarget, analysis.contactsByAttacker);
+            data.compositionNetworks = analyzeCompositionNetworks(analysis.contactsByAttacker, analysis.contactsByTarget, data.board); 
             
+            // Análise de Nível 5 (Sumarização)
+            data.totalScore = data.material.balance + data.positionalScore.balance;
+            
+            globalAnalysisResult = data;
             return data;
         }
 
         // --- FUNÇÕES DE RENDERIZAÇÃO INTERATIVA ---
         
-        /**
-         * Função auxiliar para mapear coordenada (e4) para Símbolo+Coordenada (Ne4)
-         */
         const formatControllerList = (squares) => {
             if (!globalAnalysisResult || !globalAnalysisResult.board) return squares;
-
             return squares.map(squareName => {
-                const file = squareName[0];
-                const rank = squareName[1];
-                const fileIndex = FILES.indexOf(file);
-                const rankIndex = RANKS.indexOf(rank);
-
-                if (fileIndex === -1 || rankIndex === -1) return squareName;
-
-                const pieceObj = globalAnalysisResult.board[rankIndex][fileIndex];
-                
+                const pieceObj = getPieceAtSquare(squareName, globalAnalysisResult.board);
                 if (pieceObj && pieceObj.piece) {
-                    const pieceChar = pieceObj.piece;
-                    // Usa a letra da peça em maiúsculo (P/N/Q) + coordenada para notação SAN
-                    const symbol = pieceChar.toUpperCase(); 
+                    const symbol = pieceObj.piece.toUpperCase(); 
                     return symbol + squareName;
                 }
                 return squareName; 
             });
         };
 
-        /**
-         * Aplica a lógica de coloração da rede ao tabuleiro.
-         * (REESCRITO para Hierarquia de Cores sem setas)
-         */
         function applyNetworkVisualization() {
-            // 1. Limpa todas as classes de rede
             document.querySelectorAll('.square').forEach(sq => {
                 sq.classList.remove('net-dark', 'net-light');
             });
@@ -599,38 +939,24 @@
             
             document.getElementById('clear-network-button').disabled = false;
 
-            // Busca a rede com o ID ORDENADO (que está no objeto)
             const selectedNetwork = globalAnalysisResult.compositionNetworks.find(n => n.id === parseInt(activeNetworkId));
             
             if (selectedNetwork) {
-                
-                // Conjunto de todas as casas que DEVEM ser destacadas no final
                 const piecesToHighlight = new Set();
                 
-                // 2. Nível 1: Rei (Principal Peça Atacada/Foco de Defesa) -> Roxo Escuro
-                // O Rei preto é 'k' minúsculo
-                
-                // Verifica todas as casas envolvidas na cadeia A->B->C
                 [selectedNetwork.attackerA, selectedNetwork.targetB, selectedNetwork.targetC].forEach(square => {
                     const piece = getPieceAtSquare(square, globalAnalysisResult.board);
                     if (piece && piece.piece.toLowerCase() === 'k') {
                         document.querySelector(`[data-square="${square}"]`).classList.add('net-dark');
-                        piecesToHighlight.add(square); // Adiciona o Rei para ser expandido
+                        piecesToHighlight.add(square); 
                     }
                 });
 
-                // 3. Nível 2: Torre e Peão (Impacto Secundário) -> Roxo Claro
                 [selectedNetwork.attackerA, selectedNetwork.targetB, selectedNetwork.targetC].forEach(square => {
                     const piece = getPieceAtSquare(square, globalAnalysisResult.board);
                     const element = document.querySelector(`[data-square="${square}"]`);
                     
-                    if (piece && (piece.piece.toLowerCase() === 'r' || piece.piece.toLowerCase() === 'p')) {
-                        if (!element.classList.contains('net-dark')) { // Se não for o Rei
-                            element.classList.add('net-light');
-                            piecesToHighlight.add(square); // Adiciona para ser expandido
-                        }
-                    } else if (piece && piece.piece.toLowerCase() === 'q') {
-                        // Inclui a Rainha atacante no destaque Roxo Claro, se não for o Rei
+                    if (piece && (piece.piece.toLowerCase() === 'r' || piece.piece.toLowerCase() === 'p' || piece.piece.toLowerCase() === 'q')) {
                         if (!element.classList.contains('net-dark')) {
                             element.classList.add('net-light');
                             piecesToHighlight.add(square);
@@ -638,16 +964,11 @@
                     }
                 });
                 
-                // 4. Expansão de Defesa Recursiva (Nível 3 e além) -> Roxo Claro
-                // Qualquer peça já destacada que defende outra peça deve passar a cor Roxo Claro.
-                
                 const queue = Array.from(piecesToHighlight);
                 const expanded = new Set(queue);
 
                 while (queue.length > 0) {
                     const currentSquare = queue.shift();
-                    
-                    // Encontra todas as peças que esta peça (currentSquare) defende
                     const outgoingContacts = globalAnalysisResult.contactsByAttacker[currentSquare] || [];
                     
                     outgoingContacts.forEach(contact => {
@@ -658,7 +979,7 @@
                             if (defendedEl && !defendedEl.classList.contains('net-dark') && !expanded.has(defendedSquare)) {
                                 defendedEl.classList.add('net-light');
                                 expanded.add(defendedSquare);
-                                queue.push(defendedSquare); // Continua a expansão
+                                queue.push(defendedSquare); 
                             }
                         }
                     });
@@ -666,21 +987,15 @@
             }
         }
         
-        /**
-         * Manipula o clique em uma casa, acionando a análise atômica da casa e da peça.
-         */
         function handleSquareClick(event) {
             if (!globalAnalysisResult || !globalAnalysisResult.isValid) return;
 
-            // Remove o realce de seleção da casa anterior
             document.querySelectorAll('.square').forEach(sq => sq.classList.remove('highlight'));
-            
             const clickedSquareDiv = event.currentTarget;
             clickedSquareDiv.classList.add('highlight');
             
             const squareName = clickedSquareDiv.dataset.square;
             const pieceObj = getPieceAtSquare(squareName, globalAnalysisResult.board);
-            
             const analysis = globalAnalysisResult;
             
             // 1. Lógica para Análise da CASA
@@ -703,33 +1018,25 @@
                     pieceObj,
                     pieceMobility: analysis.pieceMobility[squareName],
                     pieceContacts: analysis.contacts.filter(c => c.attacker === squareName || c.target === squareName),
-                    compositionNetworks: analysis.compositionNetworks.filter(n => n.attackerA === squareName || n.targetB === squareName || n.targetC === squareName)
+                    compositionNetworks: analysis.compositionNetworks.filter(n => n.attackerA === squareName || n.targetB === squareName || n.targetC === squareName),
+                    vulnerabilities: analysis.vulnerabilities
                 });
             } else {
-                // Se não há peça, apenas renderiza o cartão de análise da casa e oculta o de peça
                 document.getElementById('clicked-piece-details').classList.add('hidden-detail-card');
             }
             
-            // Exibe os cards de detalhes
             document.getElementById('clicked-square-details').classList.remove('hidden-detail-card');
             if (pieceObj) {
                 document.getElementById('clicked-piece-details').classList.remove('hidden-detail-card');
             }
         }
         
-        /**
-         * Renderiza o painel de detalhes da CASA clicada.
-         */
         function renderClickedSquareDetails(details) {
             const container = document.getElementById('clicked-square-details');
             const cardElement = container.querySelector('.card');
             
-            const attackedByWhite = details.attackedByWhite;
-            const attackedByBlack = details.attackedByBlack;
-            
-            // Formata as listas para SAN (Símbolo + Coordenada)
-            const whiteControllersSAN = formatControllerList(attackedByWhite);
-            const blackControllersSAN = formatControllerList(attackedByBlack);
+            const whiteControllersSAN = formatControllerList(details.attackedByWhite);
+            const blackControllersSAN = formatControllerList(details.attackedByBlack);
 
             const pieceSymbol = details.pieceObj ? PIECE_MAP[details.pieceObj.piece] : 'Vazia';
             const pieceChar = details.pieceObj ? details.pieceObj.piece : null;
@@ -744,32 +1051,29 @@
 
             let detailHtml = `<div class="card-header">Análise da Casa: ${details.squareName} (${pieceSymbol})</div>
                 <ul class="metric-list">
-                    <li><span>Peça na Casa:</span> <span>${pieceSymbol} (${pieceChar ? pieceChar : '-'})</span></li>
-                    <li><span>Cor:</span> <span>${pieceColor ? (pieceColor === 'white' ? 'Branca' : 'Preta') : '-'}</span></li>
-                    <li><span>Mob. da Peça:</span> <span>${mobilityStatus}</span></li>
+                    <li><span>Peça na Casa:</span> <span class="metric-value">${pieceSymbol} (${pieceChar ? pieceChar : '-'})</span></li>
+                    <li><span>Cor:</span> <span class="metric-value">${pieceColor ? (pieceColor === 'white' ? 'Branca' : 'Preta') : '-'}</span></li>
+                    <li><span>Mob. da Peça:</span> <span class="metric-value">${mobilityStatus}</span></li>
                 </ul>
                 <div class="card-header" style="background-color: #777; margin-top: 10px;">Controle & Interações (Casa)</div>
                 <ul class="metric-list">
-                    <li><span>Controlada por Brancas:</span> <span>${attackedByWhite.length} peças</span></li>
-                    <li><span>Controlada por Pretas:</span> <span>${attackedByBlack.length} peças</span></li>
+                    <li><span>Controlada por Brancas:</span> <span class="metric-value">${whiteControllersSAN.length} peças</span></li>
+                    <li><span>Controlada por Pretas:</span> <span class="metric-value">${blackControllersSAN.length} peças</span></li>
                 </ul>
                 <details style="margin-top: 10px; font-size: 0.9em;">
                     <summary>Detalhes do Controle</summary>
-                    <p style="margin: 5px 0 0 0;">Brancas: ${whiteControllersSAN.join(', ')}</p>
-                    <p style="margin: 5px 0 0 0;">Pretas: ${blackControllersSAN.join(', ')}</p>
+                    <p style="margin: 5px 0 0 0;">Brancas: ${whiteControllersSAN.join(', ') || 'Nenhuma'}</p>
+                    <p style="margin: 5px 0 0 0;">Pretas: ${blackControllersSAN.join(', ') || 'Nenhuma'}</p>
                 </details>
             `;
             cardElement.innerHTML = detailHtml;
         }
 
-        /**
-         * Renderiza o painel de detalhes da PEÇA clicada.
-         */
         function renderClickedPieceDetails(details) {
             const container = document.getElementById('clicked-piece-details');
             const cardElement = container.querySelector('.card');
             
-            const { squareName, pieceObj, pieceMobility, pieceContacts, compositionNetworks } = details;
+            const { squareName, pieceObj, pieceMobility, pieceContacts, compositionNetworks, vulnerabilities } = details;
 
             const pieceSymbol = PIECE_MAP[pieceObj.piece];
             const pieceColor = pieceObj.color;
@@ -783,53 +1087,54 @@
                 else { mobilityStatus = `Boa (${pieceMobility.total} mov)`; }
             }
 
+            // NOVO: Verificar status de vulnerabilidade
+            let vulnerabilityStatus = 'Segura';
+            if (vulnerabilities.hanging.some(p => p.square === squareName)) {
+                vulnerabilityStatus = `<span class="status-hanging">🔴 SUSPENSA (Atacada e Indefesa)</span>`;
+            } else if (vulnerabilities.overloaded.some(p => p.square === squareName)) {
+                vulnerabilityStatus = `<span class="status-overloaded">🟠 SOBRECARREGADA (Defende ${vulnerabilities.overloaded.find(p=>p.square === squareName).defending.length} peças)</span>`;
+            }
+
             // Agrupar interações
             const attacks = pieceContacts.filter(c => c.type === 'Ataque' && c.attacker === squareName);
             const defenses = pieceContacts.filter(c => c.type === 'Defesa' && c.attacker === squareName);
             const targets = pieceContacts.filter(c => c.target === squareName); 
             
-            // Agrupar Redes de Composição
-            const activeNetworks = compositionNetworks.filter(n => n.attackerA === squareName);
-            const intermediateNetworks = compositionNetworks.filter(n => n.targetB === squareName && n.attackerA !== squareName);
-            const passiveNetworks = compositionNetworks.filter(n => n.targetC === squareName);
             const uniqueNetworks = Array.from(new Set(compositionNetworks.map(n => n.description))).map(desc => compositionNetworks.find(n => n.description === desc));
-
 
             let detailHtml = `<div class="card-header" style="background-color: ${pieceColor === 'white' ? '#4a76a8' : '#333'}; color: white;">Análise da Peça: ${pieceSymbol} em ${squareName}</div>
                 
                 <div class="card-header" style="background-color: #f0f0f0; color: #333; margin-top: 10px;">Situação e Mobilidade</div>
                 <ul class="metric-list">
-                    <li><span>Cor:</span> <span>${pieceColor === 'white' ? 'Branca' : 'Preta'}</span></li>
-                    <li><span>Status da Mobilidade:</span> <span>${mobilityStatus}</span></li>
-                    <li><span>Detalhamento dos Movimentos:</span> <span>${movesList}</span></li>
+                    <li><span>Cor:</span> <span class="metric-value">${pieceColor === 'white' ? 'Branca' : 'Preta'}</span></li>
+                    <li><span>Status Tático:</span> <span class="metric-value">${vulnerabilityStatus}</span></li>
+                    <li><span>Status da Mobilidade:</span> <span class="metric-value">${mobilityStatus}</span></li>
+                    <li><span>Detalhamento dos Movimentos:</span> <span class="metric-value">${movesList}</span></li>
                 </ul>
 
                 <div class="card-header" style="background-color: #f0f0f0; color: #333; margin-top: 10px;">Interações Peça-Peça</div>
                 <ul class="metric-list">
-                    <li><span>Ataca:</span> <span style="color: red; font-weight: bold;">${attacks.length} peças</span></li>
-                    <li><span>Defende:</span> <span style="color: blue; font-weight: bold;">${defenses.length} peças</span></li>
-                    <li><span>Alvo de Contato (é atacada/defendida):</span> <span>${targets.length} peças</span></li>
+                    <li><span>Ataca:</span> <span class="metric-value" style="color: red; font-weight: bold;">${attacks.length} peças</span></li>
+                    <li><span>Defende:</span> <span class="metric-value" style="color: blue; font-weight: bold;">${defenses.length} peças</span></li>
+                    <li><span>Alvo de Contato:</span> <span class="metric-value">${targets.length} peças</span></li>
                 </ul>
                 
                 <div class="card-header" style="background-color: var(--network-color); color: white; margin-top: 10px;">Redes de Composição</div>
                 <ul class="metric-list">
-                    <li><span>Redes Envolvidas:</span> <span class="network">${uniqueNetworks.length}</span></li>
-                    <li><span>Como Peça Inicial (A):</span> <span class="network">${activeNetworks.length}</span></li>
-                    <li><span>Como Peça Intermediária (B):</span> <span class="network">${intermediateNetworks.length}</span></li>
-                    <li><span>Como Alvo Final (C):</span> <span class="network">${passiveNetworks.length}</span></li>
+                    <li><span>Redes Envolvidas:</span> <span class="metric-value network">${uniqueNetworks.length}</span></li>
                 </ul>
 
                 <details style="margin-top: 10px; font-size: 0.9em;">
                     <summary>Detalhes das Interações (${pieceContacts.length})</summary>
                     <p style="margin: 5px 0 0 0; font-weight: bold;">Alvos da Peça (${pieceSymbol}${squareName}):</p>
-                    ${attacks.map(c => `<div class="contact-item"><span class="attack">Ataca:</span> ${PIECE_MAP[c.targetPiece]}${c.target}</div>`).join('')}
-                    ${defenses.map(c => `<div class="contact-item"><span class="defense">Defende:</span> ${PIECE_MAP[c.targetPiece]}${c.target}</div>`).join('')}
+                    ${attacks.map(c => `<div class="contact-item"><span class="attack">Ataca:</span> ${PIECE_MAP[c.targetPiece]}${c.target}</div>`).join('') || '<div class="contact-item">Nenhum ataque.</div>'}
+                    ${defenses.map(c => `<div class="contact-item"><span class="defense">Defende:</span> ${PIECE_MAP[c.targetPiece]}${c.target}</div>`).join('') || '<div class="contact-item">Nenhuma defesa.</div>'}
                     <p style="margin: 10px 0 0 0; font-weight: bold;">Peças Interagindo com Ela:</p>
                     ${targets.map(c => {
                         const type = c.type === 'Ataque' ? 'attack' : 'defense';
                         const verb = c.type === 'Ataque' ? 'Atacada por' : 'Defendida por';
                         return `<div class="contact-item"><span class="${type}">${verb}:</span> ${PIECE_MAP[c.attackerPiece]}${c.attacker}</div>`;
-                    }).join('')}
+                    }).join('') || '<div class="contact-item">Nenhuma.</div>'}
                 </details>
 
                 <details style="margin-top: 10px; font-size: 0.9em;">
@@ -840,13 +1145,9 @@
                 </details>
             `;
             cardElement.innerHTML = detailHtml;
-            // Garante que o cartão de peça seja exibido, já que só é renderizado se houver peça
             document.getElementById('clicked-piece-details').classList.remove('hidden-detail-card');
         }
 
-        /**
-         * Renderiza o tabuleiro e as coordenadas.
-         */
         function renderBoard(board) {
             const container = document.getElementById('chessboard-container');
             container.innerHTML = '';
@@ -871,7 +1172,6 @@
                     container.appendChild(square);
                 }
             }
-            // Renderiza as coordenadas
             const rankContainer = document.getElementById('rank-coords');
             const fileContainer = document.getElementById('file-coords');
             rankContainer.innerHTML = '';
@@ -879,26 +1179,20 @@
             RANKS.forEach(rank => { const div = document.createElement('div'); div.textContent = rank; rankContainer.appendChild(div); });
             FILES.forEach(file => { const div = document.createElement('div'); div.textContent = file; fileContainer.appendChild(div); });
             
-            // Re-aplica a visualização da rede se houver uma ativa
             applyNetworkVisualization();
         }
         
-        /**
-         * Popula o seletor de redes no painel lateral.
-         * (MODIFICADO para ordenar por casas afetadas e renumerar)
-         */
         function populateNetworkSelector(networks) {
             const selector = document.getElementById('network-selector');
             const clearButton = document.getElementById('clear-network-button');
             selector.innerHTML = '<option value="none">Nenhuma</option>';
             
-            if (networks.length === 0) {
+            if (!networks || networks.length === 0) {
                 selector.disabled = true;
                 clearButton.disabled = true;
                 return;
             }
             
-            // 1. Agrupa por descrição única
             const uniqueNetworksMap = new Map();
             networks.forEach(n => {
                 if (!uniqueNetworksMap.has(n.description)) {
@@ -906,25 +1200,19 @@
                 }
             });
             let uniqueNetworks = Array.from(uniqueNetworksMap.values());
-            
-            // 2. Ordena por número de casas afetadas (decrescente)
             uniqueNetworks.sort((a, b) => b.numAffectedSquares - a.numAffectedSquares);
 
             selector.disabled = false;
             
-            // 3. Renumera e popula o seletor, atualizando o ID do objeto
             let newId = 1;
             uniqueNetworks.forEach(network => {
-                // Sobrescreve o ID temporário com o ID ordenado (que é o que usaremos para buscar a rede)
                 network.id = newId++; 
-                
                 const option = document.createElement('option');
                 option.value = network.id;
                 option.textContent = `#${network.id} (${network.numAffectedSquares} casas): ${PIECE_MAP[network.pieceA]}${network.attackerA} 🡒 ${PIECE_MAP[network.pieceB]}${network.targetB} 🡒 ${PIECE_MAP[network.pieceC]}${network.targetC}`;
                 selector.appendChild(option);
             });
             
-            // Reajusta o ID ativo (se houver, e se ele ainda for válido na nova ordenação)
             if (activeNetworkId !== 'none') {
                  const oldNetworkDescription = networks.find(n => n.id === parseInt(activeNetworkId))?.description;
                  const foundNew = uniqueNetworks.find(n => n.description === oldNetworkDescription);
@@ -935,17 +1223,11 @@
             clearButton.disabled = (activeNetworkId === 'none');
         }
 
-        /**
-         * Manipulador de mudança do seletor de redes.
-         */
         function handleNetworkSelectorChange(event) {
             activeNetworkId = event.target.value;
             applyNetworkVisualization();
         }
         
-        /**
-         * Desativa a visualização da rede e limpa o tabuleiro.
-         */
         function handleClearNetwork() {
             activeNetworkId = 'none';
             document.getElementById('network-selector').value = 'none';
@@ -955,7 +1237,7 @@
 
 
         /**
-         * Renderiza o painel de Análise Geral do FEN (Apenas Bloqueio/Limitação e Contato agora).
+         * Renderiza os painéis de Análise Geral do FEN.
          */
         function renderPositionData(analysisResult) {
             const panel = document.getElementById('analysis-results');
@@ -971,20 +1253,15 @@
             const limited = analysisResult.limitedPieces;
             const networks = analysisResult.compositionNetworks;
             
-            // Popula o seletor de rede (isso também ordena e renumera a lista de redes no globalAnalysisResult)
             populateNetworkSelector(networks);
             
-            // Para exibição detalhada, usamos a lista de redes AGORA ordenada
-            // NOTA: A lista 'networks' agora contém os IDs ordenados após a chamada a populateNetworkSelector
             const uniqueNetworks = Array.from(new Set(networks.map(n => n.description)))
                                     .map(desc => networks.find(n => n.description === desc)); 
-            
-            // Re-ordena para exibição (necessário se o array foi modificado por referência)
             uniqueNetworks.sort((a, b) => b.numAffectedSquares - a.numAffectedSquares); 
 
             let networkHtml = `<div class="card-header" style="background-color: var(--network-color); color: white;">🔗 Redes de Composição Global</div>
                 <ul class="metric-list">
-                    <li><span>Total de Redes (2-Passos):</span> <span class="network">${uniqueNetworks.length}</span></li>
+                    <li><span>Total de Redes (2-Passos):</span> <span class="metric-value network">${uniqueNetworks.length}</span></li>
                 </ul>
                 <details style="margin-top: 10px; max-height: 200px; overflow-y: auto;">
                     <summary>Clique para Ver Detalhes das Redes</summary>
@@ -996,29 +1273,26 @@
                 </details>`;
             panel.innerHTML += `<div class="card">${networkHtml}</div>`;
 
-
-            // Card: Peças Bloqueadas e Limitadas 
             let mobilityHtml = `<div class="card-header">🚧 Bloqueio e Limitação</div>
                 <ul class="metric-list">
-                    <li><span>Peças Bloqueadas (0 mov.):</span> <span class="status-blocked">${blocked.length}</span></li>
-                    <li><span>Peças Limitadas (< 3 mov.):</span> <span class="status-limited">${limited.length}</span></li>
+                    <li><span>Peças Bloqueadas (0 mov.):</span> <span class="metric-value status-blocked">${blocked.length}</span></li>
+                    <li><span>Peças Limitadas (< 3 mov.):</span> <span class="metric-value status-limited">${limited.length}</span></li>
                 </ul>
                 <details style="margin-top: 10px; max-height: 200px; overflow-y: auto; font-size: 0.9em;">
                     <summary>Detalhes (Bloqueadas/Limitadas)</summary>
-                    <p style="margin: 5px 0 0 0;"><span class="status-blocked">Bloqueadas:</span> ${blocked.map(p => `${p.symbol}${p.square}`).join(', ')}</p>
-                    <p style="margin: 5px 0 0 0;"><span class="status-limited">Limitadas:</span> ${limited.map(p => `${p.symbol}${p.square} (${p.moves} mov)`).join(', ')}</p>
+                    <p style="margin: 5px 0 0 0;"><span class="status-blocked">Bloqueadas:</span> ${blocked.map(p => `${p.symbol}${p.square}`).join(', ') || 'Nenhuma'}</p>
+                    <p style="margin: 5px 0 0 0;"><span class="status-limited">Limitadas:</span> ${limited.map(p => `${p.symbol}${p.square} (${p.moves} mov)`).join(', ') || 'Nenhuma'}</p>
                 </details>`;
             panel.innerHTML += `<div class="card">${mobilityHtml}</div>`;
 
-            // Card: Pontos de Contato 
             const attacks = contacts.filter(c => c.type === 'Ataque');
             const defenses = contacts.filter(c => c.type === 'Defesa');
             
             let contactsHtml = `<div class="card-header">⚔️ Pontos de Contato</div>
                 <ul class="metric-list">
-                    <li><span>Total de Contatos:</span> <span>${contacts.length}</span></li>
-                    <li><span>Ataques:</span> <span style="color: red;">${attacks.length}</span></li>
-                    <li><span>Defesas:</span> <span style="color: blue;">${defenses.length}</span></li>
+                    <li><span>Total de Contatos:</span> <span class="metric-value">${contacts.length}</span></li>
+                    <li><span>Ataques:</span> <span class="metric-value" style="color: red;">${attacks.length}</span></li>
+                    <li><span>Defesas:</span> <span class="metric-value" style="color: blue;">${defenses.length}</span></li>
                 </ul>
                 <details style="margin-top: 10px; max-height: 200px; overflow-y: auto;">
                     <summary>Clique para Ver Detalhes (Ataques/Defesas)</summary>
@@ -1027,20 +1301,20 @@
                         const attackerSymbol = PIECE_MAP[a.attackerPiece];
                         const targetSymbol = PIECE_MAP[a.targetPiece];
                         return `<div class="contact-item"><span class="attack">Ataque:</span> ${attackerSymbol}${a.attacker} 🡒 ${targetSymbol}${a.target}</div>`;
-                    }).join('')}
+                    }).join('') || '<div class="contact-item">Nenhum ataque.</div>'}
                     
                     <p style="margin: 10px 0 5px 0; font-weight: bold; color: blue;">Defesas (Peça 🡒 Amigo):</p>
                     ${defenses.map(d => {
                         const attackerSymbol = PIECE_MAP[d.attackerPiece];
                         const targetSymbol = PIECE_MAP[d.targetPiece];
                         return `<div class="contact-item"><span class="defense">Defesa:</span> ${attackerSymbol}${d.attacker} 🡒 ${targetSymbol}${d.target}</div>`;
-                    }).join('')}
+                    }).join('') || '<div class="contact-item">Nenhuma defesa.</div>'}
                 </details>`;
             panel.innerHTML += `<div class="card">${contactsHtml}</div>`;
         }
 
 
-        // --- FUNÇÕES DE VISÃO GERAL ---
+        // --- FUNÇÕES DE VISÃO GERAL E NOVOS RENDERERS ---
 
         /**
          * Renderiza a lista de Visão Geral de Peças no painel.
@@ -1054,7 +1328,6 @@
                  return;
             }
 
-            // Mapeia as peças
             const pieceList = Object.keys(analysisResult.pieceMobility).map(square => {
                 const mobility = analysisResult.pieceMobility[square];
                 const piece = mobility.piece;
@@ -1063,8 +1336,16 @@
                 let statusClass = '';
                 let statusText = `${mobility.total} mov`;
 
-                if (mobility.total === 0) { statusClass = 'status-blocked'; statusText = 'BLOQUEADA'; }
-                else if (mobility.total < 3) { statusClass = 'status-limited'; statusText = `LIMITADA (${mobility.total})`; }
+                // Prioridade de Status
+                if (analysisResult.vulnerabilities.hanging.some(p => p.square === square)) {
+                    statusClass = 'status-hanging'; statusText = '🔴 SUSPENSA';
+                } else if (analysisResult.vulnerabilities.overloaded.some(p => p.square === square)) {
+                    statusClass = 'status-overloaded'; statusText = '🟠 SOBRECARREGADA';
+                } else if (mobility.total === 0) {
+                    statusClass = 'status-blocked'; statusText = 'BLOQUEADA';
+                } else if (mobility.total < 3) {
+                    statusClass = 'status-limited'; statusText = `LIMITADA (${mobility.total})`;
+                }
 
                 return { square, piece, symbol, statusClass, statusText };
             });
@@ -1074,30 +1355,183 @@
                  return;
             }
 
-            // Renderiza a lista
             pieceList.forEach(item => {
                 const listItem = document.createElement('li');
                 listItem.innerHTML = `
                     <span>${item.symbol}${item.square}</span>
                     <span class="${item.statusClass}">${item.statusText}</span>
                 `;
-                // Ao clicar na lista, simula o clique no tabuleiro
+                listItem.style.cursor = 'pointer';
                 listItem.addEventListener('click', () => {
                     const squareDiv = document.querySelector(`[data-square="${item.square}"]`);
                     if (squareDiv) {
                         squareDiv.click(); 
-                        document.getElementById('analysis-panel').scrollTop = 0; // Move para o topo para ver os detalhes
+                        document.getElementById('analysis-panel').scrollTop = 0; 
                     }
                 });
                 listContainer.appendChild(listItem);
             });
         }
         
-        // --- FUNÇÕES DE CONTROLE DE EXPANSÃO (DETALHES) ---
+        /** NOVO: Renderiza o sumário de pontuação */
+        function renderScoreSummary(analysisResult) {
+            const scoreDisplay = document.getElementById('total-score-display');
+            const breakdownDisplay = document.getElementById('score-breakdown');
+            
+            if (!analysisResult || !analysisResult.isValid) {
+                scoreDisplay.textContent = 'N/A';
+                breakdownDisplay.textContent = 'Aguardando FEN válido';
+                return;
+            }
+            
+            const totalScore = analysisResult.totalScore;
+            const material = analysisResult.material.balance;
+            const position = analysisResult.positionalScore.balance;
+            
+            let scoreText = totalScore.toFixed(2);
+            if (totalScore > 0) {
+                scoreText = `+${scoreText}`;
+                scoreDisplay.style.color = 'white';
+            } else if (totalScore < 0) {
+                scoreDisplay.style.color = '#ffcdd2';
+            } else {
+                scoreDisplay.style.color = 'white';
+            }
+            
+            scoreDisplay.textContent = scoreText;
+            breakdownDisplay.textContent = `(Material: ${material.toFixed(2)}, Posição: ${position.toFixed(2)})`;
+        }
+        
+        /** NOVO: Renderiza o balanço material */
+        function renderMaterialBalance(analysisResult) {
+            const container = document.getElementById('material-balance-list');
+            container.innerHTML = '';
+            
+            if (!analysisResult || !analysisResult.isValid) {
+                container.innerHTML = `<li>Aguardando FEN válido...</li>`;
+                return;
+            }
+            
+            const material = analysisResult.material;
+            const balance = material.balance;
+            
+            let balanceText = `${balance.toFixed(1)}`;
+            let balanceClass = '';
+            if (balance > 0) {
+                balanceText = `+${balance.toFixed(1)} (Brancas)`;
+                balanceClass = 'positive';
+            } else if (balance < 0) {
+                balanceText = `${balance.toFixed(1)} (Pretas)`;
+                balanceClass = 'negative';
+            } else {
+                balanceText = `Equilibrado`;
+            }
+            
+            container.innerHTML = `
+                <li><span>Total Brancas:</span> <span class="metric-value">${material.white}</span></li>
+                <li><span>Total Pretas:</span> <span class="metric-value">${material.black}</span></li>
+                <li style="border-top: 2px solid #ccc; padding-top: 5px; margin-top: 5px;">
+                    <strong>Vantagem:</strong>
+                    <span class="metric-value ${balanceClass}">${balanceText}</span>
+                </li>
+            `;
+        }
+        
+        /** NOVO: Renderiza a pontuação posicional */
+        function renderPositionalScore(analysisResult) {
+            const container = document.getElementById('positional-score-list');
+            container.innerHTML = '';
 
-        /**
-         * Fecha todos os elementos <details> que não são o alvo clicado.
-         */
+            if (!analysisResult || !analysisResult.isValid) {
+                container.innerHTML = `<li>Aguardando FEN válido...</li>`;
+                return;
+            }
+
+            const score = analysisResult.positionalScore;
+            const balance = score.balance; // Já está em peões (dividido por 100)
+            
+            let balanceText = `${balance.toFixed(2)}`;
+            let balanceClass = '';
+            if (balance > 0) {
+                balanceText = `+${balance.toFixed(2)} (Brancas)`;
+                balanceClass = 'positive';
+            } else if (balance < 0) {
+                balanceText = `${balance.toFixed(2)} (Pretas)`;
+                balanceClass = 'negative';
+            } else {
+                balanceText = `Equilibrado`;
+            }
+
+            container.innerHTML = `
+                <li><span>Total Brancas (centipawns):</span> <span class="metric-value">${score.white}</span></li>
+                <li><span>Total Pretas (centipawns):</span> <span class="metric-value">${score.black}</span></li>
+                <li style="border-top: 2px solid #ccc; padding-top: 5px; margin-top: 5px;">
+                    <strong>Vantagem:</strong>
+                    <span class="metric-value ${balanceClass}">${balanceText}</span>
+                </li>
+            `;
+        }
+
+        /** NOVO: Renderiza a estrutura de peões */
+        function renderPawnStructure(analysisResult) {
+            const container = document.getElementById('pawn-structure-analysis');
+            container.innerHTML = '';
+            
+            if (!analysisResult || !analysisResult.isValid) {
+                container.innerHTML = `<p>Aguardando FEN válido...</p>`;
+                return;
+            }
+            
+            const s = analysisResult.pawnStructure;
+            
+            const renderSection = (title, color, data) => {
+                const style = color === 'white' ? 'card-header-white' : 'card-header-black';
+                return `
+                    <div class="card-header ${style}" style="font-size: 1em; padding: 5px 10px; margin: 10px -15px 5px -15px;">${title}</div>
+                    <ul class="metric-list" style="font-size: 0.9em;">
+                        <li><span>Dobrados:</span> <span class="metric-value ${data.doubled.length > 0 ? 'negative' : ''}">${data.doubled.join(', ') || 'Nenhum'}</span></li>
+                        <li><span>Isolados:</span> <span class="metric-value ${data.isolated.length > 0 ? 'negative' : ''}">${data.isolated.join(', ') || 'Nenhum'}</span></li>
+                        <li><span>Passados:</span> <span class="metric-value ${data.passed.length > 0 ? 'positive' : ''}">${data.passed.join(', ') || 'Nenhum'}</span></li>
+                    </ul>
+                `;
+            };
+            
+            container.innerHTML = renderSection('Brancas', 'white', s.white) + renderSection('Pretas', 'black', s.black);
+        }
+        
+        /** NOVO: Renderiza a segurança do rei */
+        function renderKingSafety(analysisResult) {
+            const container = document.getElementById('king-safety-analysis');
+            container.innerHTML = '';
+
+            if (!analysisResult || !analysisResult.isValid) {
+                container.innerHTML = `<p>Aguardando FEN válido...</p>`;
+                return;
+            }
+            
+            const s = analysisResult.kingSafety;
+
+            const renderSection = (title, color, data) => {
+                const style = color === 'white' ? 'card-header-white' : 'card-header-black';
+                let shieldText = `${data.shield} / 3`;
+                let shieldClass = data.shield >= 2 ? 'positive' : (data.shield <= 0 ? 'negative' : '');
+                
+                let filesText = data.openFiles.map(f => `${f.file} (${f.type})`).join(', ') || 'Nenhum';
+                let filesClass = data.openFiles.length > 0 ? 'negative' : '';
+
+                return `
+                    <div class="card-header ${style}" style="font-size: 1em; padding: 5px 10px; margin: 10px -15px 5px -15px;">${title}</div>
+                    <ul class="metric-list" style="font-size: 0.9em;">
+                        <li><span>Escudo de Peões:</span> <span class="metric-value ${shieldClass}">${shieldText}</span></li>
+                        <li><span>Arquivos Próximos:</span> <span class="metric-value ${filesClass}">${filesText}</span></li>
+                    </ul>
+                `;
+            };
+            
+            container.innerHTML = renderSection('Rei Branco', 'white', s.white) + renderSection('Rei Preto', 'black', s.black);
+        }
+
+        // --- FUNÇÕES DE CONTROLE DE EXPANSÃO (DETALHES) ---
         function closeOtherDetails(targetDetails = null) {
             document.querySelectorAll('details').forEach(detail => {
                 if (detail !== targetDetails) {
@@ -1106,63 +1540,43 @@
             });
         }
         
-        /**
-         * Esconde os painéis de detalhes.
-         */
         function hideDetailPanels() {
             document.getElementById('clicked-square-details').classList.add('hidden-detail-card');
             document.getElementById('clicked-piece-details').classList.add('hidden-detail-card');
             document.querySelectorAll('.square').forEach(sq => sq.classList.remove('highlight'));
         }
 
-
-        /**
-         * Manipulador de eventos de clique em todo o documento.
-         * Garante que apenas um <details> seja aberto por vez e DESAPARECE OS CARDS se clicar fora
-         */
         function handleGlobalClick(event) {
             const clickedElement = event.target;
             
-            // Elementos que não devem causar o fechamento/ocultamento
             const keepOpenElements = [
                 document.getElementById('analysis-panel'),
                 document.getElementById('board-wrapper'),
                 document.getElementById('clear-network-button')
             ];
 
-            // Se o clique foi dentro da área de análise ou do tabuleiro, não faz nada (além da lógica de <details>)
             const isInsideProtectedArea = keepOpenElements.some(el => el && el.contains(clickedElement) || clickedElement.closest('#analysis-panel'));
 
             if (!isInsideProtectedArea) {
-                // Se clicou fora do tabuleiro e do painel de análise, oculta os cards de detalhe
                 hideDetailPanels();
                 closeOtherDetails(null);
                 return; 
             }
             
-            // 1. Lógica de <details> (Expansão de detalhes)
             const clickedDetails = clickedElement.closest('details');
 
             if (clickedDetails) {
                 setTimeout(() => {
                     closeOtherDetails(clickedDetails);
                 }, 1);
-                
             } else {
-                // Se o clique foi fora de qualquer <details>
-                // Apenas feche os detalhes se o clique não for dentro de uma lista de visão geral (para permitir a rolagem)
                 if (!clickedElement.closest('#board-overview')) {
                     closeOtherDetails(null);
                 }
             }
         }
 
-
         // --- INICIALIZAÇÃO E MANIPULAÇÃO PRINCIPAL ---
-
-        /**
-         * Função principal acionada pelo botão Analisar.
-         */
         function handleParseAndRender() {
             const fenInput = document.getElementById('fen-input').value.trim();
             const validationMessage = document.getElementById('validation-message');
@@ -1181,32 +1595,28 @@
                 document.getElementById('chessboard-container').innerHTML = '';
             }
 
-            // Reseta a visualização da rede para "Nenhuma"
             handleClearNetwork();
             
-            renderPositionData(analysisResult); // Atualiza o painel de dados e o seletor
-            renderBoardOverview(analysisResult); // Atualiza a visão geral
+            // NOVO: Renderiza todos os novos painéis
+            renderScoreSummary(analysisResult);
+            renderMaterialBalance(analysisResult);
+            renderPositionalScore(analysisResult);
+            renderPawnStructure(analysisResult);
+            renderKingSafety(analysisResult);
             
-            // Esconde os painéis de detalhes e o realce do quadrado ao carregar nova análise
+            // Renderiza os painéis antigos
+            renderPositionData(analysisResult); 
+            renderBoardOverview(analysisResult); 
+            
             hideDetailPanels();
-            
-            // Fecha todos os detalhes expandidos ao carregar nova análise
             closeOtherDetails(null);
         }
 
-        // --- EVENTO DE CARREGAMENTO INICIAL ---
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('parse-button').addEventListener('click', handleParseAndRender);
-            
-            // Adiciona o listener para o novo seletor de rede
             document.getElementById('network-selector').addEventListener('change', handleNetworkSelectorChange);
-            
-            // Adiciona o listener para o botão de limpar
             document.getElementById('clear-network-button').addEventListener('click', handleClearNetwork);
-            
-            handleParseAndRender(); // Executa a análise inicial com o FEN padrão
-            
-            // Adiciona o listener global para fechar/abrir detalhes condicionalmente
+            handleParseAndRender(); 
             document.addEventListener('click', handleGlobalClick);
         });
 
