@@ -1,45 +1,56 @@
-```markdown
 # Changelog
 
-Todo o progresso notável neste projeto será documentado aqui, alinhado com os módulos do currículo definidos no `README.md`.
+Todo o histórico de mudanças notáveis neste projeto será documentado neste arquivo.
+O formato é baseado em [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Em Andamento] - Módulo 5 (Engine de Inferência)
+## [4.0.0] - 2025-11-14
 
-### Adicionado - 2025-11-11
-* **`DCA-Zobrist-JS`**: Migração da prova de conceito em Rust para Vanilla JavaScript.
-* `zobrist.js`: Módulo ES6 para geração de hash Zobrist de 64 bits (com `BigInt` e `crypto.getRandomValues`).
-* `test_zobrist.html`: Suite de testes automáticos e ferramenta de análise interativa.
-* **Validação FEN**: Adicionada função de validação de FEN (com Regex) e renderizador de tabuleiro (com Unicode) à ferramenta de análise.
-* **Mapeamento de Syllabus**: Este módulo estabelece a base para o **GCP-MLE (Software Engineering)** e o futuro Módulo 6 (Servir Modelos).
+### Corrigido (Fixed)
 
----
+* `[Lógica de Rede]` Corrigida a lógica de visualização de redes, que exibia múltiplos itens no menu suspenso que resultavam em um destaque visual idêntico. Isso acontecia porque a visualização recursiva de defesa destacava o mesmo "complexo defensivo" para várias redes táticas diferentes.
 
-## [1.2.0] - Módulo 3 (ML Clássico) - 2025-11-10
+### Adicionado (Added)
 
-### Adicionado
-* `train.py`: Script para treinar, avaliar (Acurácia, Precisão, Recall, F1) e serializar (salvar) o primeiro modelo de ML (Regressão Logística).
-* **`model_v1.joblib`**: Artefato do modelo treinado (ignorado pelo `.gitignore`).
-* **Reutilização de Código**: `train.py` importa com sucesso a função `carregar_e_limpar_dados` do `eda.py`.
-* **Mapeamento de Syllabus**: Conclui os objetivos do **CompTIA 3.2 (Modeling)** e **CompTIA 3.3 (Model Evaluation)**.
+* `[Lógica de Rede]` Implementada uma "assinatura visual" (`getNetworkVisualSignature`) para cada rede, baseada no conjunto único de casas escuras e claras que seriam destacadas.
 
----
+### Alterado (Changed)
 
-## [1.1.0] - Módulo 2 (EDA & Dashboard) - 2025-11-09
+* `[UI/UX]` O menu suspenso de "Redes de Impacto" (`populateNetworkSelector`) agora usa um `Map` para filtrar redes pela sua "assinatura visual", exibindo apenas **redes visualmente únicas**.
+* `[UI/UX]` Renomeado o card de "Redes" para "Redes (Visuais Únicas)" para refletir a nova lógica de filtragem.
 
-### Adicionado
-* `dashboard.py`: Painel de Análise Exploratória de Dados (EDA) com `Streamlit`.
-* `eda.py`: Módulo contendo 8 funções de análise de hipóteses (H1-H8).
-* **Engenharia de Features (v1)**: `Rating_Diferencial` e `Resultado_Binario` provaram ser preditores viáveis.
-* **Mapeamento de Syllabus**: Conclui os objetivos do **CompTIA 3.0 (Data Analysis & Visualization)**.
+## [3.0.0]
 
----
+### Adicionado (Added)
 
-## [1.0.0] - Módulo 1 (Pipeline ETL & QA) - 2025-11-06
+* `[Segurança do Rei]` Adicionada a detecção de **Ameaças em Diagonais** (`checkOpenDiagonals`). A ferramenta agora identifica Bispos e Damas inimigas em "raio-x" contra o Rei (quando não há peões amigos bloqueando o caminho).
+* `[Segurança do Rei]` A lógica de colunas (`checkOpenFiles`) agora diferencia entre colunas "Abertas" (sem peões) e "**Semi-Abertas**" (sem peões *amigos*), que são as mais perigosas para o Rei.
 
-### Adicionado
-* `pipeline.py`: Pipeline de ETL com `Apache Beam` para processar PGNs.
-* `parser.py`: Lógica de parsing de PGN para extrair metadados e contagem de lances.
-```
-* `test_parser.py`: Testes de unidade com `pytest` para garantir a Qualidade dos Dados (QA).
-* **Logging**: Sistema de logging robusto em `pipeline.log`.
-* **Mapeamento de Syllabus**: Conclui os objetivos do **CompTIA 2.0 (Data Pipelines)** e **CompTIA 4.1 (QA)**.
+### Alterado (Changed)
+
+* `[UI/UX]` Renomeado o termo "Arquivos Próximos" para "**Colunas Próximas**" no card de "Segurança do Rei" para usar a terminologia correta de xadrez em português.
+
+## [2.0.0]
+
+### Adicionado (Added)
+
+* `[Avaliação]` Implementado um motor de **Avaliação Estática** completo, que serve de base para todos os novos cartões de pontuação.
+* `[Avaliação]` Adicionado **Balanço Material Ponderado** (Dama=9, Torre=5, Bispo=3, Cavalo=3, Peão=1).
+* `[Avaliação]` Adicionada **Pontuação Posicional (PST)**, usando *centipawns* e *Piece-Square Tables* (PSTs) para avaliar a qualidade da casa de cada peça.
+* `[Avaliação]` Adicionada **Análise de Estrutura de Peões**, que detecta peões Dobrados, Isolados e Passados para ambas as cores.
+* `[Avaliação]` Adicionada detecção de **Vulnerabilidades Táticas** (Peças Suspensas e Peças Sobrecarregadas).
+* `[UI/UX]` Adicionado um **Sumário de Pontuação Total** no topo do painel, que combina (Material + Posição).
+* `[UI/UX]` Adicionado o card "Visão Geral de Peças" com status tático/mobilidade (ex: 🔴 SUSPENSA, 🟠 SOBRECARREGADA, BLOQUEADA).
+* `[UI/UX]` Adicionados novos cards de análise para Material, Posição, Estrutura de Peões e Segurança do Rei.
+
+## [1.0.0]
+
+### Adicionado (Added)
+
+* Criação inicial do projeto.
+* Renderização do tabuleiro de xadrez a partir de uma string FEN.
+* Painel de análise interativo.
+* Análise de **Pontos de Contato** (Ataque/Defesa).
+* Análise de **Mobilidade** (Peças Bloqueadas/Limitadas).
+* Análise de **Redes de Composição** (cadeias de 2 passos: A 🡒 B 🡒 C).
+* Visualizador de redes de impacto no tabuleiro com destaque hierárquico (escuro/claro).
+* Handler de clique para análise detalhada por casa e por peça.
