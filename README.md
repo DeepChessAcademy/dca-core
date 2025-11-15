@@ -1,92 +1,55 @@
-# ♟️ DeepChessAcademy (DCA) - MLOps & Chess AI
+# DeepChessAcademy (DCA) - Core
 
-Este repositório serve como um portfólio prático de ponta a ponta, documentando a jornada de construção de um ecossistema de Machine Learning para análise de xadrez.
+Bem-vindo ao repositório principal do DeepChessAcademy (DCA). Este projeto está na interseção da maestria do xadrez com a vanguarda da Inteligência Artificial.
 
-O objetivo principal é aplicar os conceitos das certificações **CompTIA DataX (DYO-001)** e **Google Cloud ML Engineer (GCP-MLE)** num problema do mundo real.
+Mais do que um simples "motor de xadrez" ou uma plataforma de aprendizado, o DCA é um laboratório de P&D focado em **Raciocínio, Descoberta e Geração Algorítmica**, usando o xadrez como nosso domínio de teste.
 
-## 🚀 A Arquitetura do Ecossistema
+## A Mudança de Estratégia: Da Imitação à Descoberta
 
-O projeto é dividido em dois sistemas complementares que imitam uma arquitetura MLOps moderna:
+Este projeto marca uma mudança fundamental na abordagem de aprendizado e desenvolvimento.
 
-### 1. Sistema de "Batch": O Pipeline MLOps (`dca-core`)
-* **Propósito:** Processamento em lote de *dados históricos* (milhões de jogos).
-* **Função:** Treinar e avaliar modelos de ML que aprendem padrões a partir de dados em repouso.
-* **Foco (Exames):** Mapeia diretamente para **CompTIA DataX (Pipelines, ETL, Análise)** e **GCP-MLE (MLOps, Data Pipelines)**.
+### Nova Abordagem (Convergência Total)
 
-### 2. Sistema de "Real-Time": A Engine de Inferência (`dca-chess-engine`)
-* **Propósito:** Análise interativa de *dados em tempo real* (uma posição de tabuleiro).
-* **Função:** Servir os modelos treinados (do Sistema 1) e aplicar algoritmos de xadrez (como Zobrist Hashing) para avaliação imediata.
-* **Foco (Exames):** Mapeia para **GCP-MLE (Software Engineering, Model Serving)** e os fundamentos de CS necessários para construir sistemas de ML complexos.
+* **Convergência Total no DCA:** O DCA é o *único ponto de convergência*. Cada fundamento (SQL, Rust, Otimização) é "puxado" por uma necessidade complexa e real do projeto.
+* **Foco em Raciocínio e Descoberta:** Inspirados por pesquisas de ponta, nosso objetivo muda da *imitação* para o *raciocínio* e a *descoberta*. Não queremos apenas prever o melhor lance; queremos que a IA *raciocine* hierarquicamente e *descubra* novos conhecimentos e estratégias.
+* **Domínio Ativo:** O xadrez não é um assunto passivo. É o ambiente de teste para problemas algorítmicos mais difíceis que os encontrados no LeetCode ou Kaggle.
 
----
+## Novos Objetivos (Inspirados em Pesquisa de Ponta)
 
-## 🧭 O Currículo (Módulos do Projeto)
+Nossos objetivos evoluíram para refletir a vanguarda da pesquisa em IA:
 
-Cada módulo abaixo representa um passo no currículo, ligando uma necessidade do projeto a um domínio do exame.
+### 1. Do Problema à Descoberta (AlphaEvolve)
 
-### Sistema 1: O Pipeline MLOps (Batch)
+* **Inspiração:** O artigo `AlphaEvolve: A coding agent for scientific and algorithmic discovery`.
+* **Objetivo DCA:** Construir um agente evolucionário (baseado em LLMs ou modelos de código) que não apenas *jogue* xadrez, mas que *otimize* e *descubra* novos algoritmos de avaliação, estratégias de abertura ou até mesmo simplificações em motores de xadrez existentes.
 
-#### Módulo 1: O Pipeline de Dados (ETL) & QA
-* **Propósito:** Ingerir, analisar (parse), limpar e estruturar dados de PGN.
-* **Syllabus:** **CompTIA 2.0 (Data Pipelines)**, **CompTIA 4.1 (QA)**.
-* **Entregável:** `pipeline.py` (com Apache Beam) e `test_parser.py` (com `pytest`).
-* **Status:** ✅ Concluído
+### 2. Geração Criativa de Problemas (RL + Generative AI)
 
-#### Módulo 2: O Valor das Peças (EDA & Dashboard)
-* **Propósito:** Análise Exploratória de Dados (EDA) para validar hipóteses e descobrir *features* (preditores).
-* **Syllabus:** **CompTIA 3.0 (Data Analysis & Visualization)**.
-* **Entregável:** `dashboard.py` (com Streamlit) e `eda.py`.
-* **Status:** ✅ Concluído
+* **Inspiração:** O artigo `Generating Creative Chess Puzzles`.
+* **Objetivo DCA:** Desenvolver um framework de Reinforcement Learning (RL) que é recompensado não por vencer, mas por gerar *puzzles* de xadrez que sejam novos, esteticamente agradáveis, contra-intuitivos e instrutivos para humanos.
 
-#### Módulo 3: Vendo o Futuro (ML Clássico)
-* **Propósito:** Treinar um primeiro modelo (Regressão Logística) para provar o conceito. Inclui treino, avaliação e serialização.
-* **Syllabus:** **CompTIA 3.2 (Modeling)**, **CompTIA 3.3 (Model Evaluation)**.
-* **Entregável:** `train.py` e o artefato `model_v1.joblib`.
-* **Status:** ✅ Concluído
+### 3. Da "Profundidade" à "Recursão" (Tiny & Hierarchical Models)
 
-#### Módulo 4: O Tabuleiro "Quente" (Feature Engineering)
-* **Propósito:** Ir além da simples "diferença de rating" e criar *features* complexas (ex: "contagem de peças", "estrutura de peões").
-* **Syllabus:** **CompTIA 3.1 (Feature Engineering)**.
-* **Entregável:** (Pendente) Versão v2 do pipeline de treino.
-* **Status:** ⏳ Pendente
+* **Inspiração:** Os artigos `Less is More: Recursive Reasoning with Tiny Networks` (TRM) e `Hierarchical Reasoning Model` (HRM).
+* **Objetivo DCA:** Implementar e avaliar modelos de raciocínio recursivos e hierárquicos no domínio do xadrez. O desafio é alcançar performance de alto nível em tarefas complexas de raciocínio (ex: táticas longas) com modelos de parâmetros extremamente baixos (ex: < 30M).
 
----
+### 4. Da "Imitação" ao "Raciocínio" (Supervised RL)
 
-### Sistema 2: A Engine de Inferência (Real-time)
+* **Inspiração:** O artigo `Supervised Reinforcement Learning (SRL): From Expert Trajectories to Step-wise Reasoning`.
+* **Objetivo DCA:** Treinar modelos para gerar um "monólogo interno" de raciocínio. Ao invés de apenas dar a solução de um puzzle, o modelo deve gerar o *processo de pensamento* passo a passo que leva à solução, guiado por demonstrações de especialistas.
 
-#### Módulo 5: A Engine (Algoritmos & Parsing FEN)
-* **Propósito:** Construir as fundações de uma engine de xadrez, incluindo um parser FEN e Zobrist Hashing para deteção de transposição.
-* **Syllabus:** **GCP-MLE (Software Engineering Best Practices)**, **Fundamentos de Algoritmos** (necessários para pesquisa de árvores).
-* **Entregável:** Módulo `zobrist.js` e a ferramenta de análise `test_zobrist.html`.
-* **Status:** ✅ Concluído
+### 5. Da "Teoria" à "Engenharia" (MLOps & DataX)
 
-#### Módulo 6: O Oráculo (Deep Learning & Transformers)
-* **Propósito:** Substituir o modelo de ML Clássico (M3) por um modelo de Deep Learning (Transformer) que possa ser alimentado por uma interface UCI.
-* **Syllabus:** **GCP-MLE (Build & Use ML Models)**, **GCP-MLE (ML Model Serving)**.
-* **Entregável:** (Pendente) Interface UCI e o modelo Transformer treinado.
-* **Status:** ⏳ Pendente
+* **Inspiração:** Os guias `Professional Machine Learning Engineer Study Guide` e `CompTIA DataX Exam Objectives`.
+* **Objetivo DCA:** Tratar o DCA como um produto de nível profissional. Implementar um pipeline de MLOps completo para ingestão de dados (ex: o dataset de 10M de jogos do `ChessBench`), treinamento, versionamento, deployment e monitoramento dos modelos de raciocínio e geração.
 
----
+## O "Currículo" de Fundamentos Aplicados
 
-## 🛠️ Como Executar os Componentes
+Este projeto é a via pela qual a maestria nos fundamentos será alcançada:
 
-### 1. Pipeline MLOps (Módulos 1-3)
-
-(Requer Python, `venv`, e `requirements.txt`)
-
-```bash
-# Módulo 1: Executar o Pipeline de ETL
-python pipeline.py
-
-# Módulo 2: Executar o Painel de Análise
-streamlit run dashboard.py
-
-# Módulo 3: Treinar o Modelo
-python train.py
-
-# 1. Inicie um servidor local no diretório
-python -m http.server
-
-# 2. Abra o browser e navegue para:
-# http://localhost:8000/test_zobrist.html
-```
+* **Estatística, Álgebra Linear, Cálculo, Otimização:** O dia-a-dia da implementação, depuração e otimização dos modelos de raciocínio (TRM, HRM, SRL).
+* **Algoritmos:** O núcleo do agente de descoberta (AlphaEvolve) e dos sistemas de geração de puzzles (RL).
+* **Engenharia de Software:** A arquitetura do sistema DCA como uma plataforma coesa, escalável e robusta.
+* **SQL:** O design e a otimização de um banco de dados em larga escala para armazenar e consultar eficientemente bilhões de posições, jogos e puzzles gerados.
+* **Desenvolvimento Web com Rust:** A construção do backend da API do DCA (ex: `dca-api`) com foco em alta performance, segurança e concorrência para servir análises e puzzles em tempo real.
+* **Desenvolvimento ARM com Rust:** A otimização e compilação dos nossos modelos "Tiny" (TRM) para rodar eficientemente em dispositivos de borda (edge devices), provando que o raciocínio complexo não exige hardware massivo.
