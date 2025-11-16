@@ -54,3 +54,4 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 * Análise de **Redes de Composição** (cadeias de 2 passos: A 🡒 B 🡒 C).
 * Visualizador de redes de impacto no tabuleiro com destaque hierárquico (escuro/claro).
 * Handler de clique para análise detalhada por casa e por peça.
+
